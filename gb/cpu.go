@@ -54,16 +54,16 @@ type cpu struct {
 	data    uint8
 
 	status  cpuStatus
-	opstack []func()
+	opstack []func(b *bus)
 }
 
-func (c *cpu) clock() {
+func (c *cpu) clock(b *bus) {
 	if len(c.opstack) == 0 {
 		return
 	}
 
 	head := len(c.opstack) - 1
-	c.opstack[head]()
+	c.opstack[head](b)
 	c.opstack = c.opstack[:head]
 }
 
