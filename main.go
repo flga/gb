@@ -1,10 +1,37 @@
 package main
 
 import (
+	"fmt"
+	"os"
+	"runtime"
+
+	"github.com/flga/gb/gb"
 	"github.com/veandco/go-sdl2/sdl"
 )
 
+func init() {
+	runtime.LockOSThread()
+}
+
 func main() {
+	if len(os.Args) < 2 {
+		fmt.Fprintln(os.Stderr, "no rom provided")
+		os.Exit(1)
+	}
+
+	if err := run(os.Args[1]); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+func run(romPath string) error {
+	rom, err := os.Open(romPath)
+	if err != nil {
+		return fmt.Errorf("could not load rom: %w", err)
+	}
+	defer rom.Close()
+
 	if err := sdl.Init(sdl.INIT_EVERYTHING); err != nil {
 		panic(err)
 	}
@@ -29,12 +56,18 @@ func main() {
 	renderer.SetIntegerScale(true)
 	renderer.SetLogicalSize(160, 144)
 
+	console := gb.New()
+	if err := console.InsertCartridge(rom); err != nil {
+		return fmt.Errorf("could not load rom: %w", err)
+	}
+
+	fmt.Println(console.CartridgeInfo())
+
 	running := true
 	for running {
 		for event := sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
 			switch event.(type) {
 			case *sdl.QuitEvent:
-				println("Quit")
 				running = false
 				break
 			}
@@ -44,4 +77,6 @@ func main() {
 		renderer.FillRect(&sdl.Rect{X: 0, Y: 0, W: 200, H: 200})
 		renderer.Present()
 	}
+
+	return nil
 }

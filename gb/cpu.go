@@ -67,48 +67,56 @@ func (c *cpu) clock(b *bus) {
 	c.opstack = c.opstack[:head]
 }
 
-func (c *cpu) adc()
-func (c *cpu) add()
-func (c *cpu) and()
-func (c *cpu) bit()
-func (c *cpu) call()
-func (c *cpu) ccf()
-func (c *cpu) cp()
-func (c *cpu) cpl()
-func (c *cpu) daa()
-func (c *cpu) dec()
-func (c *cpu) di()
-func (c *cpu) ei()
-func (c *cpu) halt()
-func (c *cpu) inc()
-func (c *cpu) jp()
-func (c *cpu) jr()
-func (c *cpu) ld()
-func (c *cpu) ldh()
-func (c *cpu) nop()
-func (c *cpu) or()
-func (c *cpu) pop()
-func (c *cpu) prefix()
-func (c *cpu) push()
-func (c *cpu) res()
-func (c *cpu) ret()
-func (c *cpu) reti()
-func (c *cpu) rl()
-func (c *cpu) rla()
-func (c *cpu) rlc()
-func (c *cpu) rlca()
-func (c *cpu) rr()
-func (c *cpu) rra()
-func (c *cpu) rrc()
-func (c *cpu) rrca()
-func (c *cpu) rst()
-func (c *cpu) sbc()
-func (c *cpu) scf()
-func (c *cpu) set()
-func (c *cpu) sla()
-func (c *cpu) sra()
-func (c *cpu) srl()
-func (c *cpu) stop()
-func (c *cpu) sub()
-func (c *cpu) swap()
-func (c *cpu) xor()
+func (c *cpu) read(addr uint16) uint8 {
+	return 0 // todo
+}
+
+func (c *cpu) write(addr uint16, v uint8) {
+	// todo
+}
+
+func (c *cpu) adc()    {}
+func (c *cpu) add()    {}
+func (c *cpu) and()    {}
+func (c *cpu) bit()    {}
+func (c *cpu) call()   {}
+func (c *cpu) ccf()    {}
+func (c *cpu) cp()     {}
+func (c *cpu) cpl()    {}
+func (c *cpu) daa()    {}
+func (c *cpu) dec()    {}
+func (c *cpu) di()     {}
+func (c *cpu) ei()     {}
+func (c *cpu) halt()   {}
+func (c *cpu) inc()    {}
+func (c *cpu) jp()     {}
+func (c *cpu) jr()     {}
+func (c *cpu) ld()     {}
+func (c *cpu) ldh()    {}
+func (c *cpu) nop()    {}
+func (c *cpu) or()     {}
+func (c *cpu) pop()    {}
+func (c *cpu) prefix() {}
+func (c *cpu) push()   {}
+func (c *cpu) res()    {}
+func (c *cpu) ret()    {}
+func (c *cpu) reti()   {}
+func (c *cpu) rl()     {}
+func (c *cpu) rla()    {}
+func (c *cpu) rlc()    {}
+func (c *cpu) rlca()   {}
+func (c *cpu) rr()     {}
+func (c *cpu) rra()    {}
+func (c *cpu) rrc()    {}
+func (c *cpu) rrca()   {}
+func (c *cpu) rst()    {}
+func (c *cpu) sbc()    {}
+func (c *cpu) scf()    {}
+func (c *cpu) set()    {}
+func (c *cpu) sla()    {}
+func (c *cpu) sra()    {}
+func (c *cpu) srl()    {}
+func (c *cpu) stop()   {}
+func (c *cpu) sub()    {}
+func (c *cpu) swap()   {}
+func (c *cpu) xor()    {}
