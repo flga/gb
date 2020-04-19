@@ -27,8 +27,9 @@ func newCartridge(r io.Reader) (*cartridge, error) {
 	}
 
 	ret := &cartridge{
-		rom:  rom(data),
-		info: CartridgeInfo{},
+		rom:    rom(data),
+		info:   CartridgeInfo{},
+		mapper: mapper0{},
 	}
 
 	ret.info.parseFrom(data)
@@ -37,10 +38,16 @@ func newCartridge(r io.Reader) (*cartridge, error) {
 }
 
 func (c *cartridge) translateRead(addr uint16) uint16 {
+	if c == nil {
+		return addr // TODO: this is hack to avoid the race condition of reg initialization when cart not present, need to rethink that
+	}
 	return c.mapper.translateRead(addr)
 }
 
 func (c *cartridge) translateWrite(addr uint16) uint16 {
+	if c == nil {
+		return addr // TODO: this is hack to avoid the race condition of reg initialization when cart not present, need to rethink that
+	}
 	return c.mapper.translateWrite(addr)
 }
 
@@ -56,6 +63,11 @@ type mapper interface {
 	translateRead(addr uint16) uint16
 	translateWrite(addr uint16) uint16
 }
+
+type mapper0 struct{}
+
+func (_ mapper0) translateRead(addr uint16) uint16  { return addr }
+func (_ mapper0) translateWrite(addr uint16) uint16 { return addr }
 
 type CartridgeInfo struct {
 	Title                string

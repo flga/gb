@@ -15,11 +15,28 @@ const (
 	_
 	_
 	_
-	c // carry
-	h // halfCarry
-	n // negative
-	z // zero
+	fc // carry
+	fh // halfCarry
+	fn // negative
+	fz // zero
 )
+
+func (f cpuFlags) String() string {
+	buf := make([]rune, 0, 4)
+	if f&fc > 0 {
+		buf = append(buf, 'C')
+	}
+	if f&fh > 0 {
+		buf = append(buf, 'H')
+	}
+	if f&fn > 0 {
+		buf = append(buf, 'N')
+	}
+	if f&fz > 0 {
+		buf = append(buf, 'Z')
+	}
+	return string(buf)
+}
 
 func (f *cpuFlags) set(flag cpuFlags, v bool) {
 	*f &^= flag
@@ -43,7 +60,7 @@ const (
 
 type cpu struct {
 	A    uint8
-	F    uint8
+	F    cpuFlags
 	B, C uint8
 	D, E uint8
 	H, L uint8
@@ -75,54 +92,9 @@ func (c *cpu) write(addr uint16, v uint8) {
 	// todo
 }
 
-func (c *cpu) adc()  {}
-func (c *cpu) add()  {}
-func (c *cpu) and()  {}
-func (c *cpu) bit()  {}
-func (c *cpu) call() {}
-func (c *cpu) ccf()  {}
-func (c *cpu) cp()   {}
-func (c *cpu) cpl()  {}
-func (c *cpu) daa()  {}
-func (c *cpu) dec()  {}
-func (c *cpu) di()   {}
-func (c *cpu) ei()   {}
-func (c *cpu) halt() {}
-func (c *cpu) inc()  {}
-func (c *cpu) jp()   {}
-func (c *cpu) jr()   {}
 func (c *cpu) ld(target *uint8, v uint8) {
 	*target = v
 }
-func (c *cpu) ldh()    {}
-func (c *cpu) nop()    {}
-func (c *cpu) or()     {}
-func (c *cpu) pop()    {}
-func (c *cpu) prefix() {}
-func (c *cpu) push()   {}
-func (c *cpu) res()    {}
-func (c *cpu) ret()    {}
-func (c *cpu) reti()   {}
-func (c *cpu) rl()     {}
-func (c *cpu) rla()    {}
-func (c *cpu) rlc()    {}
-func (c *cpu) rlca()   {}
-func (c *cpu) rr()     {}
-func (c *cpu) rra()    {}
-func (c *cpu) rrc()    {}
-func (c *cpu) rrca()   {}
-func (c *cpu) rst()    {}
-func (c *cpu) sbc()    {}
-func (c *cpu) scf()    {}
-func (c *cpu) set()    {}
-func (c *cpu) sla()    {}
-func (c *cpu) sra()    {}
-func (c *cpu) srl()    {}
-func (c *cpu) stop()   {}
-func (c *cpu) sub()    {}
-func (c *cpu) swap()   {}
-func (c *cpu) xor()    {}
-
 func (c *cpu) executeInst(b *bus) {
 	op := b.read(c.PC)
 	c.PC++
@@ -394,6 +366,240 @@ func (c *cpu) executeInst(b *bus) {
 		c.PC++
 		addr := uint16(b.read(0xFF00 + n))
 		c.ld(&c.A, b.read(addr))
-	}
 
+	//16 bit loads
+	case 0x01: // LD BC,nn 01 12
+		c.C = b.read(c.PC)
+		c.PC++
+		c.B = b.read(c.PC)
+		c.PC++
+	case 0x11: // LD DE,nn 11 12
+		c.E = b.read(c.PC)
+		c.PC++
+		c.D = b.read(c.PC)
+		c.PC++
+	case 0x21: // LD HL,nn 21 12
+		c.L = b.read(c.PC)
+		c.PC++
+		c.H = b.read(c.PC)
+		c.PC++
+	case 0x31: // LD SP,nn 31 12
+		lo := uint16(b.read(c.PC))
+		c.PC++
+		hi := uint16(b.read(c.PC))
+		c.PC++
+		c.SP = hi<<8 | lo
+	case 0xF9: // LD SP,HL F9 8
+		lo := uint16(c.L)
+		hi := uint16(c.H)
+		c.SP = hi<<8 | lo
+		b.read(c.SP) // TODO: assumption
+	case 0xF8: //LDHL SP,n F8 12
+		n := b.read(c.PC)
+		c.PC++
+
+		lo := uint8(c.SP & 0xFF)
+		hi := uint8(c.SP >> 8 & 0xFF)
+
+		// clear carries
+		c.F.set(fh, false)
+		c.F.set(fc, false)
+		// adc
+		c.L = c.doAddc(lo, n)
+		c.H = c.doAddc(hi, 0)
+		// patch zero
+		c.F.set(fz, false)
+
+		b.read(c.SP) // TODO: assumption
+	case 0x08: // LD (nn),SP 08 20
+		lo := b.read(c.PC)
+		c.PC++
+		hi := b.read(c.PC)
+		c.PC++
+		addr := uint16(hi)<<8 | uint16(lo)
+		b.write(addr, uint8(c.SP&0xFF))
+		b.write(addr+1, uint8(c.SP>>8&0xFF))
+	case 0xF5: // PUSH AF F5 16
+		b.read(c.SP) // TODO: assumption
+		c.SP--       // TODO: confirm sp dec order
+		b.write(c.SP, c.A)
+		c.SP-- // TODO: confirm sp dec order
+		b.write(c.SP, uint8(c.F))
+	case 0xC5: // PUSH BC C5 16
+		b.read(c.SP) // TODO: assumption
+		c.SP--       // TODO: confirm sp dec order
+		b.write(c.SP, c.B)
+		c.SP-- // TODO: confirm sp dec order
+		b.write(c.SP, c.C)
+	case 0xD5: // PUSH DE D5 16
+		b.read(c.SP) // TODO: assumption
+		c.SP--       // TODO: confirm sp dec order
+		b.write(c.SP, c.D)
+		c.SP-- // TODO: confirm sp dec order
+		b.write(c.SP, c.E)
+	case 0xE5: // PUSH HL E5 16
+		b.read(c.SP) // TODO: assumption
+		c.SP--       // TODO: confirm sp dec order
+		b.write(c.SP, c.H)
+		c.SP-- // TODO: confirm sp dec order
+		b.write(c.SP, c.L)
+	case 0xF1: // POP AF F1 12
+		c.F = cpuFlags(b.read(c.SP))
+		c.SP++
+		c.A = b.read(c.SP)
+		c.SP++
+	case 0xC1: // POP BC C1 12
+		c.C = b.read(c.SP)
+		c.SP++
+		c.B = b.read(c.SP)
+		c.SP++
+	case 0xD1: // POP DE D1 12
+		c.E = b.read(c.SP)
+		c.SP++
+		c.D = b.read(c.SP)
+		c.SP++
+	case 0xE1: // POP HL E1 12
+		c.L = b.read(c.SP)
+		c.SP++
+		c.H = b.read(c.SP)
+		c.SP++
+	case 0x87: // ADD A,A 87 4
+		c.F.set(fc, false)
+		c.A = c.doAddc(c.A, c.A)
+	case 0x80: // ADD A,B 80 4
+		c.F.set(fc, false)
+		c.A = c.doAddc(c.A, c.B)
+	case 0x81: // ADD A,C 81 4
+		c.F.set(fc, false)
+		c.A = c.doAddc(c.A, c.C)
+	case 0x82: // ADD A,D 82 4
+		c.F.set(fc, false)
+		c.A = c.doAddc(c.A, c.D)
+	case 0x83: // ADD A,E 83 4
+		c.F.set(fc, false)
+		c.A = c.doAddc(c.A, c.E)
+	case 0x84: // ADD A,H 84 4
+		c.F.set(fc, false)
+		c.A = c.doAddc(c.A, c.H)
+	case 0x85: // ADD A,L 85 4
+		c.F.set(fc, false)
+		c.A = c.doAddc(c.A, c.L)
+	case 0x86: // ADD A,(HL) 86 8
+		lo := uint16(c.L)
+		hi := uint16(c.H)
+		c.F.set(fc, false)
+		c.A = c.doAddc(c.A, b.read(hi<<8|lo))
+	case 0xC6: // ADD A,# C6 8
+		v := b.read(c.PC)
+		c.PC++
+		c.F.set(fc, false)
+		c.A = c.doAddc(c.A, v)
+	}
 }
+
+func (c *cpu) doAddc(a, b uint8) uint8 {
+	var carry uint16
+	if c.F&fc > 0 {
+		carry = 1
+	}
+	v := uint16(a) + uint16(b) + carry
+	c.F.set(fz, v == 0)
+	c.F.set(fn, false)
+	c.F.set(fh, a&0xF+b&0xF > 0xF)
+	c.F.set(fc, v > 0xFF)
+	return uint8(v)
+}
+
+// instruction base
+func (c *cpu) adc_r_d8(b *bus)    {}
+func (c *cpu) adc_r_irr(b *bus)   {}
+func (c *cpu) adc_r_r(b *bus)     {}
+func (c *cpu) add_r_d8(b *bus)    {}
+func (c *cpu) add_r_irr(b *bus)   {}
+func (c *cpu) add_r_r(b *bus)     {}
+func (c *cpu) add_rr_rr(b *bus)   {}
+func (c *cpu) add_rr_sp(b *bus)   {}
+func (c *cpu) add_sp_r8(b *bus)   {}
+func (c *cpu) and_d8(b *bus)      {}
+func (c *cpu) and_irr(b *bus)     {}
+func (c *cpu) and_r(b *bus)       {}
+func (c *cpu) call_a16(b *bus)    {}
+func (c *cpu) call_NC_a16(b *bus) {}
+func (c *cpu) call_NZ_a16(b *bus) {}
+func (c *cpu) call_r_a16(b *bus)  {}
+func (c *cpu) call_Z_a16(b *bus)  {}
+func (c *cpu) ccf(b *bus)         {}
+func (c *cpu) cp_d8(b *bus)       {}
+func (c *cpu) cp_irr(b *bus)      {}
+func (c *cpu) cpl(b *bus)         {}
+func (c *cpu) cp_r(b *bus)        {}
+func (c *cpu) daa(b *bus)         {}
+func (c *cpu) dec_irr(b *bus)     {}
+func (c *cpu) dec_r(b *bus)       {}
+func (c *cpu) dec_rr(b *bus)      {}
+func (c *cpu) dec_sp(b *bus)      {}
+func (c *cpu) di(b *bus)          {}
+func (c *cpu) ei(b *bus)          {}
+func (c *cpu) halt(b *bus)        {}
+func (c *cpu) inc_irr(b *bus)     {}
+func (c *cpu) inc_r(b *bus)       {}
+func (c *cpu) inc_rr(b *bus)      {}
+func (c *cpu) inc_sp(b *bus)      {}
+func (c *cpu) jp_a16(b *bus)      {}
+func (c *cpu) jp_irr(b *bus)      {}
+func (c *cpu) jp_NC_a16(b *bus)   {}
+func (c *cpu) jp_NZ_a16(b *bus)   {}
+func (c *cpu) jp_r_a16(b *bus)    {}
+func (c *cpu) jp_Z_a16(b *bus)    {}
+func (c *cpu) jr_NC_r8(b *bus)    {}
+func (c *cpu) jr_NZ_r8(b *bus)    {}
+func (c *cpu) jr_r8(b *bus)       {}
+func (c *cpu) jr_r_r8(b *bus)     {}
+func (c *cpu) jr_Z_r8(b *bus)     {}
+func (c *cpu) ldh_ia8_r(b *bus)   {}
+func (c *cpu) ldh_r_ia8(b *bus)   {}
+func (c *cpu) ld_ia16_r(b *bus)   {}
+func (c *cpu) ld_ia16_sp(b *bus)  {}
+func (c *cpu) ld_ir_r(b *bus)     {}
+func (c *cpu) ld_irr_d8(b *bus)   {}
+func (c *cpu) ld_irr_r(b *bus)    {}
+func (c *cpu) ld__r(b *bus)       {}
+func (c *cpu) ld_r_(b *bus)       {}
+func (c *cpu) ld_r_d8(b *bus)     {}
+func (c *cpu) ld_r_ia16(b *bus)   {}
+func (c *cpu) ld_r_ir(b *bus)     {}
+func (c *cpu) ld_r_irr(b *bus)    {}
+func (c *cpu) ld_r_r(b *bus)      {}
+func (c *cpu) ld_rr_d16(b *bus)   {}
+func (c *cpu) ld_rr_SP_r8(b *bus) {}
+func (c *cpu) ld_sp_d16(b *bus)   {}
+func (c *cpu) ld_sp_rr(b *bus)    {}
+func (c *cpu) nop(b *bus)         {}
+func (c *cpu) or_d8(b *bus)       {}
+func (c *cpu) or_irr(b *bus)      {}
+func (c *cpu) or_r(b *bus)        {}
+func (c *cpu) pop_rr(b *bus)      {}
+func (c *cpu) prefix_(b *bus)     {}
+func (c *cpu) push_rr(b *bus)     {}
+func (c *cpu) ret(b *bus)         {}
+func (c *cpu) reti(b *bus)        {}
+func (c *cpu) ret_NC(b *bus)      {}
+func (c *cpu) ret_NZ(b *bus)      {}
+func (c *cpu) ret_r(b *bus)       {}
+func (c *cpu) ret_Z(b *bus)       {}
+func (c *cpu) rla(b *bus)         {}
+func (c *cpu) rlca(b *bus)        {}
+func (c *cpu) rra(b *bus)         {}
+func (c *cpu) rrca(b *bus)        {}
+func (c *cpu) rst_(b *bus)        {}
+func (c *cpu) sbc_r_d8(b *bus)    {}
+func (c *cpu) sbc_r_irr(b *bus)   {}
+func (c *cpu) sbc_r_r(b *bus)     {}
+func (c *cpu) scf(b *bus)         {}
+func (c *cpu) stop_(b *bus)       {}
+func (c *cpu) sub_d8(b *bus)      {}
+func (c *cpu) sub_irr(b *bus)     {}
+func (c *cpu) sub_r(b *bus)       {}
+func (c *cpu) xor_d8(b *bus)      {}
+func (c *cpu) xor_irr(b *bus)     {}
+func (c *cpu) xor_r(b *bus)       {}

@@ -181,6 +181,7 @@ func (b *bus) read(addr uint16) uint8 {
 	}
 
 	panic(fmt.Sprintf("unmapped read at 0%X", addr))
+	return 0
 }
 
 func (b *bus) write(addr uint16, v uint8) {
