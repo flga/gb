@@ -511,95 +511,432 @@ func (c *cpu) doAddc(a, b uint8) uint8 {
 }
 
 // instruction base
-func (c *cpu) adc_r_d8(b *bus)    {}
-func (c *cpu) adc_r_irr(b *bus)   {}
-func (c *cpu) adc_r_r(b *bus)     {}
-func (c *cpu) add_r_d8(b *bus)    {}
-func (c *cpu) add_r_irr(b *bus)   {}
-func (c *cpu) add_r_r(b *bus)     {}
-func (c *cpu) add_rr_rr(b *bus)   {}
-func (c *cpu) add_rr_sp(b *bus)   {}
-func (c *cpu) add_sp_r8(b *bus)   {}
-func (c *cpu) and_d8(b *bus)      {}
-func (c *cpu) and_irr(b *bus)     {}
-func (c *cpu) and_r(b *bus)       {}
-func (c *cpu) call_a16(b *bus)    {}
-func (c *cpu) call_NC_a16(b *bus) {}
-func (c *cpu) call_NZ_a16(b *bus) {}
-func (c *cpu) call_r_a16(b *bus)  {}
-func (c *cpu) call_Z_a16(b *bus)  {}
-func (c *cpu) ccf(b *bus)         {}
-func (c *cpu) cp_d8(b *bus)       {}
-func (c *cpu) cp_irr(b *bus)      {}
-func (c *cpu) cpl(b *bus)         {}
-func (c *cpu) cp_r(b *bus)        {}
-func (c *cpu) daa(b *bus)         {}
-func (c *cpu) dec_irr(b *bus)     {}
-func (c *cpu) dec_r(b *bus)       {}
-func (c *cpu) dec_rr(b *bus)      {}
-func (c *cpu) dec_sp(b *bus)      {}
-func (c *cpu) di(b *bus)          {}
-func (c *cpu) ei(b *bus)          {}
-func (c *cpu) halt(b *bus)        {}
-func (c *cpu) inc_irr(b *bus)     {}
-func (c *cpu) inc_r(b *bus)       {}
-func (c *cpu) inc_rr(b *bus)      {}
-func (c *cpu) inc_sp(b *bus)      {}
-func (c *cpu) jp_a16(b *bus)      {}
-func (c *cpu) jp_irr(b *bus)      {}
-func (c *cpu) jp_NC_a16(b *bus)   {}
-func (c *cpu) jp_NZ_a16(b *bus)   {}
-func (c *cpu) jp_r_a16(b *bus)    {}
-func (c *cpu) jp_Z_a16(b *bus)    {}
-func (c *cpu) jr_NC_r8(b *bus)    {}
-func (c *cpu) jr_NZ_r8(b *bus)    {}
-func (c *cpu) jr_r8(b *bus)       {}
-func (c *cpu) jr_r_r8(b *bus)     {}
-func (c *cpu) jr_Z_r8(b *bus)     {}
-func (c *cpu) ldh_ia8_r(b *bus)   {}
-func (c *cpu) ldh_r_ia8(b *bus)   {}
-func (c *cpu) ld_ia16_r(b *bus)   {}
-func (c *cpu) ld_ia16_sp(b *bus)  {}
-func (c *cpu) ld_ir_r(b *bus)     {}
-func (c *cpu) ld_irr_d8(b *bus)   {}
-func (c *cpu) ld_irr_r(b *bus)    {}
-func (c *cpu) ld__r(b *bus)       {}
-func (c *cpu) ld_r_(b *bus)       {}
-func (c *cpu) ld_r_d8(b *bus)     {}
-func (c *cpu) ld_r_ia16(b *bus)   {}
-func (c *cpu) ld_r_ir(b *bus)     {}
-func (c *cpu) ld_r_irr(b *bus)    {}
-func (c *cpu) ld_r_r(b *bus)      {}
-func (c *cpu) ld_rr_d16(b *bus)   {}
+
+// 0x39 ADD HL,SP
+func (c *cpu) add_rr_sp(b *bus) {}
+
+// 0x76 HALT
+func (c *cpu) halt(b *bus) {}
+
+// 0xc2 JP NZ,a16
+func (c *cpu) jp_NZ_a16(b *bus) {}
+
+// 0xf8 LD HL,SP+r8
 func (c *cpu) ld_rr_SP_r8(b *bus) {}
-func (c *cpu) ld_sp_d16(b *bus)   {}
-func (c *cpu) ld_sp_rr(b *bus)    {}
-func (c *cpu) nop(b *bus)         {}
-func (c *cpu) or_d8(b *bus)       {}
-func (c *cpu) or_irr(b *bus)      {}
-func (c *cpu) or_r(b *bus)        {}
-func (c *cpu) pop_rr(b *bus)      {}
-func (c *cpu) prefix_(b *bus)     {}
-func (c *cpu) push_rr(b *bus)     {}
-func (c *cpu) ret(b *bus)         {}
-func (c *cpu) reti(b *bus)        {}
-func (c *cpu) ret_NC(b *bus)      {}
-func (c *cpu) ret_NZ(b *bus)      {}
-func (c *cpu) ret_r(b *bus)       {}
-func (c *cpu) ret_Z(b *bus)       {}
-func (c *cpu) rla(b *bus)         {}
-func (c *cpu) rlca(b *bus)        {}
-func (c *cpu) rra(b *bus)         {}
-func (c *cpu) rrca(b *bus)        {}
-func (c *cpu) rst_(b *bus)        {}
-func (c *cpu) sbc_r_d8(b *bus)    {}
-func (c *cpu) sbc_r_irr(b *bus)   {}
-func (c *cpu) sbc_r_r(b *bus)     {}
-func (c *cpu) scf(b *bus)         {}
-func (c *cpu) stop_(b *bus)       {}
-func (c *cpu) sub_d8(b *bus)      {}
-func (c *cpu) sub_irr(b *bus)     {}
-func (c *cpu) sub_r(b *bus)       {}
-func (c *cpu) xor_d8(b *bus)      {}
-func (c *cpu) xor_irr(b *bus)     {}
-func (c *cpu) xor_r(b *bus)       {}
+
+// 0xfa LD A,(a16)
+func (c *cpu) ld_r_ia16(b *bus) {}
+
+// 0x02 LD (BC),A
+// 0x12 LD (DE),A
+// 0x70 LD (HL),B
+// 0x71 LD (HL),C
+// 0x72 LD (HL),D
+// 0x73 LD (HL),E
+// 0x74 LD (HL),H
+// 0x75 LD (HL),L
+// 0x77 LD (HL),A
+func (c *cpu) ld_irr_r(b *bus) {}
+
+// 0x28 JR Z,r8
+func (c *cpu) jr_Z_r8(b *bus) {}
+
+// 0x30 JR NC,r8
+func (c *cpu) jr_NC_r8(b *bus) {}
+
+// 0xe6 AND d8
+func (c *cpu) and_d8(b *bus) {}
+
+// 0xf3 DI
+func (c *cpu) di(b *bus) {}
+
+// 0xfb EI
+func (c *cpu) ei(b *bus) {}
+
+// 0x2a LD A,(HL+)
+// 0x3a LD A,(HL-)
+func (c *cpu) ld_r_(b *bus) {}
+
+// 0x3f CCF
+func (c *cpu) ccf(b *bus) {}
+
+// 0xb6 OR (HL)
+func (c *cpu) or_irr(b *bus) {}
+
+// 0xc7 RST 00H
+// 0xcf RST 08H
+// 0xd7 RST 10H
+// 0xdf RST 18H
+// 0xe7 RST 20H
+// 0xef RST 28H
+// 0xf7 RST 30H
+// 0xff RST 38H
+func (c *cpu) rst_(b *bus) {}
+
+// 0xd8 RET C
+func (c *cpu) ret_r(b *bus) {}
+
+// 0x09 ADD HL,BC
+// 0x19 ADD HL,DE
+// 0x29 ADD HL,HL
+func (c *cpu) add_rr_rr(b *bus) {}
+
+// 0xce ADC A,d8
+func (c *cpu) adc_r_d8(b *bus) {}
+
+// 0x8e ADC A,(HL)
+func (c *cpu) adc_r_irr(b *bus) {}
+
+// 0xc3 JP a16
+func (c *cpu) jp_a16(b *bus) {}
+
+// 0xc9 RET
+func (c *cpu) ret(b *bus) {}
+
+// 0xcb PREFIX CB
+func (c *cpu) prefix_(b *bus) {}
+
+// 0xcc CALL Z,a16
+func (c *cpu) call_Z_a16(b *bus) {}
+
+// 0xdc CALL C,a16
+func (c *cpu) call_r_a16(b *bus) {}
+
+// 0x1f RRA
+func (c *cpu) rra(b *bus) {}
+
+// 0xa0 AND B
+// 0xa1 AND C
+// 0xa2 AND D
+// 0xa3 AND E
+// 0xa4 AND H
+// 0xa5 AND L
+// 0xa7 AND A
+func (c *cpu) and_r(b *bus) {}
+
+// 0xca JP Z,a16
+func (c *cpu) jp_Z_a16(b *bus) {}
+
+// 0xe2 LD (C),A
+func (c *cpu) ld_ir_r(b *bus) {}
+
+// 0xe9 JP (HL)
+func (c *cpu) jp_irr(b *bus) {}
+
+// 0xc5 PUSH BC
+// 0xd5 PUSH DE
+// 0xe5 PUSH HL
+// 0xf5 PUSH AF
+func (c *cpu) push_rr(b *bus) {}
+
+// 0x00 NOP
+func (c *cpu) nop(b *bus) {}
+
+// 0x20 JR NZ,r8
+func (c *cpu) jr_NZ_r8(b *bus) {}
+
+// 0x38 JR C,r8
+func (c *cpu) jr_r_r8(b *bus) {}
+
+// 0x96 SUB (HL)
+func (c *cpu) sub_irr(b *bus) {}
+
+// 0xc0 RET NZ
+func (c *cpu) ret_NZ(b *bus) {}
+
+// 0xc1 POP BC
+// 0xd1 POP DE
+// 0xe1 POP HL
+// 0xf1 POP AF
+func (c *cpu) pop_rr(b *bus) {}
+
+// 0xea LD (a16),A
+func (c *cpu) ld_ia16_r(b *bus) {}
+
+// 0xee XOR d8
+func (c *cpu) xor_d8(b *bus) {}
+
+// 0x0f RRCA
+func (c *cpu) rrca(b *bus) {}
+
+// 0x17 RLA
+func (c *cpu) rla(b *bus) {}
+
+// 0x34 INC (HL)
+func (c *cpu) inc_irr(b *bus) {}
+
+// 0x9e SBC A,(HL)
+func (c *cpu) sbc_r_irr(b *bus) {}
+
+// 0xa8 XOR B
+// 0xa9 XOR C
+// 0xaa XOR D
+// 0xab XOR E
+// 0xac XOR H
+// 0xad XOR L
+// 0xaf XOR A
+func (c *cpu) xor_r(b *bus) {}
+
+// 0xd2 JP NC,a16
+func (c *cpu) jp_NC_a16(b *bus) {}
+
+// 0x27 DAA
+func (c *cpu) daa(b *bus) {}
+
+// 0xb0 OR B
+// 0xb1 OR C
+// 0xb2 OR D
+// 0xb3 OR E
+// 0xb4 OR H
+// 0xb5 OR L
+// 0xb7 OR A
+func (c *cpu) or_r(b *bus) {}
+
+// 0xd6 SUB d8
+func (c *cpu) sub_d8(b *bus) {}
+
+// 0xd9 RETI
+func (c *cpu) reti(b *bus) {}
+
+// 0xae XOR (HL)
+func (c *cpu) xor_irr(b *bus) {}
+
+// 0xd4 CALL NC,a16
+func (c *cpu) call_NC_a16(b *bus) {}
+
+// 0x05 DEC B
+// 0x0d DEC C
+// 0x15 DEC D
+// 0x1d DEC E
+// 0x25 DEC H
+// 0x2d DEC L
+// 0x3d DEC A
+func (c *cpu) dec_r(b *bus) {}
+
+// 0x08 LD (a16),SP
+func (c *cpu) ld_ia16_sp(b *bus) {}
+
+// 0x18 JR r8
+func (c *cpu) jr_r8(b *bus) {}
+
+// 0x3b DEC SP
+func (c *cpu) dec_sp(b *bus) {}
+
+// 0x88 ADC A,B
+// 0x89 ADC A,C
+// 0x8a ADC A,D
+// 0x8b ADC A,E
+// 0x8c ADC A,H
+// 0x8d ADC A,L
+// 0x8f ADC A,A
+func (c *cpu) adc_r_r(b *bus) {}
+
+// 0x98 SBC A,B
+// 0x99 SBC A,C
+// 0x9a SBC A,D
+// 0x9b SBC A,E
+// 0x9c SBC A,H
+// 0x9d SBC A,L
+// 0x9f SBC A,A
+func (c *cpu) sbc_r_r(b *bus) {}
+
+// 0xf9 LD SP,HL
+func (c *cpu) ld_sp_rr(b *bus) {}
+
+// 0xf0 LDH A,(a8)
+func (c *cpu) ldh_r_ia8(b *bus) {}
+
+// 0xf2 LD A,(C)
+func (c *cpu) ld_r_ir(b *bus) {}
+
+// 0x10 STOP 0
+func (c *cpu) stop_(b *bus) {}
+
+// 0x2f CPL
+func (c *cpu) cpl(b *bus) {}
+
+// 0x31 LD SP,d16
+func (c *cpu) ld_sp_d16(b *bus) {}
+
+// 0x33 INC SP
+func (c *cpu) inc_sp(b *bus) {}
+
+// 0x80 ADD A,B
+// 0x81 ADD A,C
+// 0x82 ADD A,D
+// 0x83 ADD A,E
+// 0x84 ADD A,H
+// 0x85 ADD A,L
+// 0x87 ADD A,A
+func (c *cpu) add_r_r(b *bus) {}
+
+// 0xc6 ADD A,d8
+func (c *cpu) add_r_d8(b *bus) {}
+
+// 0xf6 OR d8
+func (c *cpu) or_d8(b *bus) {}
+
+// 0x01 LD BC,d16
+// 0x11 LD DE,d16
+// 0x21 LD HL,d16
+func (c *cpu) ld_rr_d16(b *bus) {}
+
+// 0x36 LD (HL),d8
+func (c *cpu) ld_irr_d8(b *bus) {}
+
+// 0xc8 RET Z
+func (c *cpu) ret_Z(b *bus) {}
+
+// 0xfe CP d8
+func (c *cpu) cp_d8(b *bus) {}
+
+// 0x06 LD B,d8
+// 0x0e LD C,d8
+// 0x16 LD D,d8
+// 0x1e LD E,d8
+// 0x26 LD H,d8
+// 0x2e LD L,d8
+// 0x3e LD A,d8
+func (c *cpu) ld_r_d8(b *bus) {}
+
+// 0x0a LD A,(BC)
+// 0x1a LD A,(DE)
+// 0x46 LD B,(HL)
+// 0x4e LD C,(HL)
+// 0x56 LD D,(HL)
+// 0x5e LD E,(HL)
+// 0x66 LD H,(HL)
+// 0x6e LD L,(HL)
+// 0x7e LD A,(HL)
+func (c *cpu) ld_r_irr(b *bus) {}
+
+// 0xcd CALL a16
+func (c *cpu) call_a16(b *bus) {}
+
+// 0xe0 LDH (a8),A
+func (c *cpu) ldh_ia8_r(b *bus) {}
+
+// 0x03 INC BC
+// 0x13 INC DE
+// 0x23 INC HL
+func (c *cpu) inc_rr(b *bus) {}
+
+// 0x22 LD (HL+),A
+// 0x32 LD (HL-),A
+func (c *cpu) ld__r(b *bus) {}
+
+// 0x37 SCF
+func (c *cpu) scf(b *bus) {}
+
+// 0x90 SUB B
+// 0x91 SUB C
+// 0x92 SUB D
+// 0x93 SUB E
+// 0x94 SUB H
+// 0x95 SUB L
+// 0x97 SUB A
+func (c *cpu) sub_r(b *bus) {}
+
+// 0xb8 CP B
+// 0xb9 CP C
+// 0xba CP D
+// 0xbb CP E
+// 0xbc CP H
+// 0xbd CP L
+// 0xbf CP A
+func (c *cpu) cp_r(b *bus) {}
+
+// 0xd0 RET NC
+func (c *cpu) ret_NC(b *bus) {}
+
+// 0xda JP C,a16
+func (c *cpu) jp_r_a16(b *bus) {}
+
+// 0x04 INC B
+// 0x0c INC C
+// 0x14 INC D
+// 0x1c INC E
+// 0x24 INC H
+// 0x2c INC L
+// 0x3c INC A
+func (c *cpu) inc_r(b *bus) {}
+
+// 0x07 RLCA
+func (c *cpu) rlca(b *bus) {}
+
+// 0x0b DEC BC
+// 0x1b DEC DE
+// 0x2b DEC HL
+func (c *cpu) dec_rr(b *bus) {}
+
+// 0x40 LD B,B
+// 0x41 LD B,C
+// 0x42 LD B,D
+// 0x43 LD B,E
+// 0x44 LD B,H
+// 0x45 LD B,L
+// 0x47 LD B,A
+// 0x48 LD C,B
+// 0x49 LD C,C
+// 0x4a LD C,D
+// 0x4b LD C,E
+// 0x4c LD C,H
+// 0x4d LD C,L
+// 0x4f LD C,A
+// 0x50 LD D,B
+// 0x51 LD D,C
+// 0x52 LD D,D
+// 0x53 LD D,E
+// 0x54 LD D,H
+// 0x55 LD D,L
+// 0x57 LD D,A
+// 0x58 LD E,B
+// 0x59 LD E,C
+// 0x5a LD E,D
+// 0x5b LD E,E
+// 0x5c LD E,H
+// 0x5d LD E,L
+// 0x5f LD E,A
+// 0x60 LD H,B
+// 0x61 LD H,C
+// 0x62 LD H,D
+// 0x63 LD H,E
+// 0x64 LD H,H
+// 0x65 LD H,L
+// 0x67 LD H,A
+// 0x68 LD L,B
+// 0x69 LD L,C
+// 0x6a LD L,D
+// 0x6b LD L,E
+// 0x6c LD L,H
+// 0x6d LD L,L
+// 0x6f LD L,A
+// 0x78 LD A,B
+// 0x79 LD A,C
+// 0x7a LD A,D
+// 0x7b LD A,E
+// 0x7c LD A,H
+// 0x7d LD A,L
+// 0x7f LD A,A
+func (c *cpu) ld_r_r(b *bus) {}
+
+// 0x86 ADD A,(HL)
+func (c *cpu) add_r_irr(b *bus) {}
+
+// 0xa6 AND (HL)
+func (c *cpu) and_irr(b *bus) {}
+
+// 0xe8 ADD SP,r8
+func (c *cpu) add_sp_r8(b *bus) {}
+
+// 0x35 DEC (HL)
+func (c *cpu) dec_irr(b *bus) {}
+
+// 0xbe CP (HL)
+func (c *cpu) cp_irr(b *bus) {}
+
+// 0xc4 CALL NZ,a16
+func (c *cpu) call_NZ_a16(b *bus) {}
+
+// 0xde SBC A,d8
+func (c *cpu) sbc_r_d8(b *bus) {}

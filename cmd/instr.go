@@ -157,12 +157,22 @@ func run(funcnames bool) {
 		instructions = append(instructions, inst)
 	}
 
+	funcs := make(map[string][]string)
+
 	for _, inst := range instructions {
 		if !funcnames {
 			fmt.Fprintf(tw, "0x%02X\t%s\t%s\t%d\t%d\t%d\t%s\n", inst.code, inst.mnemonic, inst.op, inst.size, inst.cycles, inst.cyclesExtra, inst.flags)
 		} else {
-			fmt.Println(inst.op)
+			funcs[inst.op] = append(funcs[inst.op], fmt.Sprintf("0x%02x\t%s", inst.code, inst.mnemonic))
 		}
+	}
+
+	for k, v := range funcs {
+		// func (c *cpu) adc_r_d8(b *bus)    {}
+		for _, mn := range v {
+			fmt.Printf("// %s\n", mn)
+		}
+		fmt.Printf("func (c *cpu) %s(b *bus)    {}\n", k)
 	}
 }
 
