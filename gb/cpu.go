@@ -841,7 +841,16 @@ func (c *cpu) jr_r8(opcode uint8, b *bus) {
 }
 
 // 0x38 JR C,r8 2 12 8 - - - -
-func (c *cpu) jr_r_r8(opcode uint8, b *bus) { panic("not implemented") }
+func (c *cpu) jr_r_r8(opcode uint8, b *bus) {
+	r8 := uint16(int8(b.read(c.PC)))
+
+	if c.F&fc == 0 {
+		return
+	}
+
+	c.PC += uint16(r8)
+	b.read(c.PC) // TODO: what actually gets read (or written)? } }
+}
 
 // 0x22 LD (HL+),A      1 8 0 - - - -
 // 0x32 LD (HL-),A      1 8 0 - - - -
@@ -1553,16 +1562,57 @@ func (c *cpu) reti(opcode uint8, b *bus) {
 }
 
 // 0x17 RLA     1 4 0 0 0 0 C
-func (c *cpu) rla(opcode uint8, b *bus) { panic("not implemented") }
+func (c *cpu) rla(opcode uint8, b *bus) {
+	var carryIn uint8
+	if c.F&fc > 0 {
+		carryIn = 1
+	}
+	carryOut := c.A & 0x80
+	c.A = c.A<<1 | carryIn
+
+	c.F.set(fz, false)
+	c.F.set(fn, false)
+	c.F.set(fh, false)
+	c.F.set(fc, carryOut > 0)
+}
 
 // 0x07 RLCA    1 4 0 0 0 0 C
-func (c *cpu) rlca(opcode uint8, b *bus) { panic("not implemented") }
+func (c *cpu) rlca(opcode uint8, b *bus) {
+	carryOut := c.A & 0x80
+	c.A = c.A << 1
+
+	c.F.set(fz, false)
+	c.F.set(fn, false)
+	c.F.set(fh, false)
+	c.F.set(fc, carryOut > 0)
+}
 
 // 0x1F RRA     1 4 0 0 0 0 C
-func (c *cpu) rra(opcode uint8, b *bus) { panic("not implemented") }
+func (c *cpu) rra(opcode uint8, b *bus) {
+	var carryIn uint8
+	if c.F&fc > 0 {
+		carryIn = 1 << 7
+	}
+
+	carryOut := c.A & 0x1
+	c.A = c.A>>1 | carryIn
+
+	c.F.set(fz, false)
+	c.F.set(fn, false)
+	c.F.set(fh, false)
+	c.F.set(fc, carryOut > 0)
+}
 
 // 0x0F RRCA    1 4 0 0 0 0 C
-func (c *cpu) rrca(opcode uint8, b *bus) { panic("not implemented") }
+func (c *cpu) rrca(opcode uint8, b *bus) {
+	carryOut := c.A & 0x1
+	c.A = c.A >> 1
+
+	c.F.set(fz, false)
+	c.F.set(fn, false)
+	c.F.set(fh, false)
+	c.F.set(fc, carryOut > 0)
+}
 
 // 0xC7 RST 00H 1 16 0 - - - -
 // 0xCF RST 08H 1 16 0 - - - -
