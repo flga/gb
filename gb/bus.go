@@ -60,6 +60,8 @@ func newBus() *bus {
 		hram: nil, //todo
 	}
 
+	ret.cpu.init()
+
 	// io registers init
 	ret.write(0xFF05, 0x00) // TIMA
 	ret.write(0xFF06, 0x00) // TMA

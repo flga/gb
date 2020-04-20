@@ -4,9 +4,8 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"text/tabwriter"
@@ -26,20 +25,72 @@ type instruction struct {
 }
 
 func main() {
-	funcnames := flag.Bool("funcs", false, "generate func list instead of table")
+	gen := flag.String("gen", "data", "what to generate, data|funcs|table")
 	flag.Parse()
-	run(*funcnames)
+
+	switch *gen {
+	case "data":
+		data()
+	case "funcs":
+		funcs()
+	case "table":
+		table()
+	}
 }
 
-func run(funcnames bool) {
-	var out io.Writer = os.Stdout
-	if funcnames {
-		out = ioutil.Discard
-	}
-	tw := tabwriter.NewWriter(out, 0, 2, 2, ' ', 0)
+func data() {
+	instructions := parse()
+
+	tw := tabwriter.NewWriter(os.Stdout, 0, 2, 2, ' ', 0)
 	defer tw.Flush()
 
 	fmt.Fprintln(tw, "CODE\tMNEMONIC\tOP\tSIZE\tCYCLES\tCYCLESEXTRA\tFLAGS")
+
+	for _, inst := range instructions {
+		fmt.Fprintf(tw, "0x%02X\t%s\t%s\t%d\t%d\t%d\t%s\n", inst.code, inst.mnemonic, inst.op, inst.size, inst.cycles, inst.cyclesExtra, inst.flags)
+	}
+}
+
+func table() {
+	instructions := parse()
+
+	fmt.Println("func (c *cpu) genTable() {")
+	fmt.Println("	c.table = [...]op{")
+	for i, inst := range instructions {
+		fmt.Printf("c.%s,", inst.op)
+		if i > 0 && i%16 == 0 {
+			fmt.Println("		")
+		}
+	}
+	fmt.Println()
+	fmt.Println("	}")
+	fmt.Println("}")
+}
+
+func funcs() {
+	instructions := parse()
+
+	funcs := make(map[string][]string)
+	for _, inst := range instructions {
+		funcs[inst.op] = append(funcs[inst.op], fmt.Sprintf("0x%02X\t%s\t%d %d %d %s", inst.code, inst.mnemonic, inst.size, inst.cycles, inst.cyclesExtra, inst.flags))
+	}
+
+	var keys []string
+	for k := range funcs {
+		keys = append(keys, k)
+	}
+
+	sort.Strings(keys)
+	for _, k := range keys {
+		v := funcs[k]
+		for _, mn := range v {
+			fmt.Printf("// %s\n", mn)
+		}
+		fmt.Printf("func (c *cpu) %s(opcode uint8, b *bus)    {panic(\"not implemented\")}\n", k)
+	}
+}
+
+func parse() []instruction {
 	var data []string
 	if err := json.Unmarshal([]byte(raw), &data); err != nil {
 		panic(err)
@@ -157,23 +208,7 @@ func run(funcnames bool) {
 		instructions = append(instructions, inst)
 	}
 
-	funcs := make(map[string][]string)
-
-	for _, inst := range instructions {
-		if !funcnames {
-			fmt.Fprintf(tw, "0x%02X\t%s\t%s\t%d\t%d\t%d\t%s\n", inst.code, inst.mnemonic, inst.op, inst.size, inst.cycles, inst.cyclesExtra, inst.flags)
-		} else {
-			funcs[inst.op] = append(funcs[inst.op], fmt.Sprintf("0x%02x\t%s", inst.code, inst.mnemonic))
-		}
-	}
-
-	for k, v := range funcs {
-		// func (c *cpu) adc_r_d8(b *bus)    {}
-		for _, mn := range v {
-			fmt.Printf("// %s\n", mn)
-		}
-		fmt.Printf("func (c *cpu) %s(b *bus)    {}\n", k)
-	}
+	return instructions
 }
 
 func digits(s string) string {
