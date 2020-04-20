@@ -375,19 +375,100 @@ func (c *cpu) and_r(opcode uint8, b *bus) {
 }
 
 // 0xD4 CALL NC,a16     3 24 12 - - - -
-func (c *cpu) call_NC_a16(opcode uint8, b *bus) { panic("not implemented") }
+func (c *cpu) call_NC_a16(opcode uint8, b *bus) {
+	lo := uint16(b.read(c.PC))
+	c.PC++
+	hi := uint16(b.read(c.PC))
+	c.PC++
+
+	if c.F&fc > 0 {
+		return
+	}
+
+	c.SP--
+	b.write(c.SP, uint8(c.PC>>8))
+	c.SP--
+	b.write(c.SP, uint8(c.PC&0xFF))
+
+	c.PC = hi<<8 | lo
+	b.read(c.PC) // TODO: what actually gets read (or written)?
+}
 
 // 0xC4 CALL NZ,a16     3 24 12 - - - -
-func (c *cpu) call_NZ_a16(opcode uint8, b *bus) { panic("not implemented") }
+func (c *cpu) call_NZ_a16(opcode uint8, b *bus) {
+	lo := uint16(b.read(c.PC))
+	c.PC++
+	hi := uint16(b.read(c.PC))
+	c.PC++
+
+	if c.F&fz > 0 {
+		return
+	}
+
+	c.SP--
+	b.write(c.SP, uint8(c.PC>>8))
+	c.SP--
+	b.write(c.SP, uint8(c.PC&0xFF))
+
+	c.PC = hi<<8 | lo
+	b.read(c.PC) // TODO: what actually gets read (or written)?
+}
 
 // 0xCC CALL Z,a16      3 24 12 - - - -
-func (c *cpu) call_Z_a16(opcode uint8, b *bus) { panic("not implemented") }
+func (c *cpu) call_Z_a16(opcode uint8, b *bus) {
+	lo := uint16(b.read(c.PC))
+	c.PC++
+	hi := uint16(b.read(c.PC))
+	c.PC++
+
+	if c.F&fz == 0 {
+		return
+	}
+
+	c.SP--
+	b.write(c.SP, uint8(c.PC>>8))
+	c.SP--
+	b.write(c.SP, uint8(c.PC&0xFF))
+
+	c.PC = hi<<8 | lo
+	b.read(c.PC) // TODO: what actually gets read (or written)?
+}
 
 // 0xCD CALL a16        3 24 0 - - - -
-func (c *cpu) call_a16(opcode uint8, b *bus) { panic("not implemented") }
+func (c *cpu) call_a16(opcode uint8, b *bus) {
+	lo := uint16(b.read(c.PC))
+	c.PC++
+	hi := uint16(b.read(c.PC))
+	c.PC++
+
+	c.SP--
+	b.write(c.SP, uint8(c.PC>>8))
+	c.SP--
+	b.write(c.SP, uint8(c.PC&0xFF))
+
+	c.PC = hi<<8 | lo
+	b.read(c.PC) // TODO: what actually gets read (or written)?
+}
 
 // 0xDC CALL C,a16      3 24 12 - - - -
-func (c *cpu) call_r_a16(opcode uint8, b *bus) { panic("not implemented") }
+func (c *cpu) call_r_a16(opcode uint8, b *bus) {
+	lo := uint16(b.read(c.PC))
+	c.PC++
+	hi := uint16(b.read(c.PC))
+	c.PC++
+
+	if c.F&fc == 0 {
+		return
+	}
+
+	c.SP--
+	b.write(c.SP, uint8(c.PC>>8))
+	c.SP--
+	b.write(c.SP, uint8(c.PC&0xFF))
+
+	c.PC = hi<<8 | lo
+	b.read(c.PC) // TODO: what actually gets read (or written)?
+}
 
 // 0x3F CCF     1 4 0 - 0 0 C
 func (c *cpu) ccf(opcode uint8, b *bus) {
@@ -638,34 +719,126 @@ func (c *cpu) inc_sp(opcode uint8, b *bus) {
 }
 
 // 0xD2 JP NC,a16       3 16 12 - - - -
-func (c *cpu) jp_NC_a16(opcode uint8, b *bus) { panic("not implemented") }
+func (c *cpu) jp_NC_a16(opcode uint8, b *bus) {
+	lo := uint16(b.read(c.PC))
+	c.PC++
+	hi := uint16(b.read(c.PC))
+	c.PC++
+
+	if c.F&fc > 0 {
+		return
+	}
+
+	c.PC = hi<<8 | lo
+	b.read(c.PC) // TODO: what actually gets read (or written)?
+}
 
 // 0xC2 JP NZ,a16       3 16 12 - - - -
-func (c *cpu) jp_NZ_a16(opcode uint8, b *bus) { panic("not implemented") }
+func (c *cpu) jp_NZ_a16(opcode uint8, b *bus) {
+	lo := uint16(b.read(c.PC))
+	c.PC++
+	hi := uint16(b.read(c.PC))
+	c.PC++
+
+	if c.F&fz > 0 {
+		return
+	}
+
+	c.PC = hi<<8 | lo
+	b.read(c.PC) // TODO: what actually gets read (or written)?
+}
 
 // 0xCA JP Z,a16        3 16 12 - - - -
-func (c *cpu) jp_Z_a16(opcode uint8, b *bus) { panic("not implemented") }
+func (c *cpu) jp_Z_a16(opcode uint8, b *bus) {
+	lo := uint16(b.read(c.PC))
+	c.PC++
+	hi := uint16(b.read(c.PC))
+	c.PC++
+
+	if c.F&fz == 0 {
+		return
+	}
+
+	c.PC = hi<<8 | lo
+	b.read(c.PC) // TODO: what actually gets read (or written)? }
+}
 
 // 0xC3 JP a16  3 16 0 - - - -
-func (c *cpu) jp_a16(opcode uint8, b *bus) { panic("not implemented") }
+func (c *cpu) jp_a16(opcode uint8, b *bus) {
+	lo := uint16(b.read(c.PC))
+	c.PC++
+	hi := uint16(b.read(c.PC))
+	c.PC++
+
+	c.PC = hi<<8 | lo
+	b.read(c.PC) // TODO: what actually gets read (or written)?
+}
 
 // 0xE9 JP (HL) 1 4 0 - - - -
-func (c *cpu) jp_irr(opcode uint8, b *bus) { panic("not implemented") }
+func (c *cpu) jp_irr(opcode uint8, b *bus) {
+	lo := uint16(c.L)
+	hi := uint16(c.H)
+
+	c.PC = hi<<8 | lo
+}
 
 // 0xDA JP C,a16        3 16 12 - - - -
-func (c *cpu) jp_r_a16(opcode uint8, b *bus) { panic("not implemented") }
+func (c *cpu) jp_r_a16(opcode uint8, b *bus) {
+	lo := uint16(b.read(c.PC))
+	c.PC++
+	hi := uint16(b.read(c.PC))
+	c.PC++
+
+	if c.F&fc == 0 {
+		return
+	}
+
+	c.PC = hi<<8 | lo
+	b.read(c.PC) // TODO: what actually gets read (or written)? }
+}
 
 // 0x30 JR NC,r8        2 12 8 - - - -
-func (c *cpu) jr_NC_r8(opcode uint8, b *bus) { panic("not implemented") }
+func (c *cpu) jr_NC_r8(opcode uint8, b *bus) {
+	r8 := uint16(int8(b.read(c.PC)))
+
+	if c.F&fc > 0 {
+		return
+	}
+
+	c.PC += r8
+	b.read(c.PC) // TODO: what actually gets read (or written)? }
+}
 
 // 0x20 JR NZ,r8        2 12 8 - - - -
-func (c *cpu) jr_NZ_r8(opcode uint8, b *bus) { panic("not implemented") }
+func (c *cpu) jr_NZ_r8(opcode uint8, b *bus) {
+	r8 := uint16(int8(b.read(c.PC)))
+
+	if c.F&fz == 0 {
+		return
+	}
+
+	c.PC += r8
+	b.read(c.PC) // TODO: what actually gets read (or written)? }
+}
 
 // 0x28 JR Z,r8 2 12 8 - - - -
-func (c *cpu) jr_Z_r8(opcode uint8, b *bus) { panic("not implemented") }
+func (c *cpu) jr_Z_r8(opcode uint8, b *bus) {
+	r8 := uint16(int8(b.read(c.PC)))
+
+	if c.F&fz == 0 {
+		return
+	}
+
+	c.PC += uint16(r8)
+	b.read(c.PC) // TODO: what actually gets read (or written)? } }
+}
 
 // 0x18 JR r8   2 12 0 - - - -
-func (c *cpu) jr_r8(opcode uint8, b *bus) { panic("not implemented") }
+func (c *cpu) jr_r8(opcode uint8, b *bus) {
+	r8 := uint16(int8(b.read(c.PC)))
+	c.PC += r8
+	b.read(c.PC) // TODO: what actually gets read (or written)? }
+}
 
 // 0x38 JR C,r8 2 12 8 - - - -
 func (c *cpu) jr_r_r8(opcode uint8, b *bus) { panic("not implemented") }
@@ -1172,13 +1345,27 @@ func (c *cpu) ldh_r_ia8(opcode uint8, b *bus) {
 }
 
 // 0x00 NOP     1 4 0 - - - -
-func (c *cpu) nop(opcode uint8, b *bus) { panic("not implemented") }
+func (c *cpu) nop(opcode uint8, b *bus) {}
 
 // 0xF6 OR d8   2 8 0 Z 0 0 0
-func (c *cpu) or_d8(opcode uint8, b *bus) { panic("not implemented") }
+func (c *cpu) or_d8(opcode uint8, b *bus) {
+	v := b.read(c.PC)
+	c.PC++
+
+	c.A |= v
+	c.F.set(fz, c.A == 0)
+}
 
 // 0xB6 OR (HL) 1 8 0 Z 0 0 0
-func (c *cpu) or_irr(opcode uint8, b *bus) { panic("not implemented") }
+func (c *cpu) or_irr(opcode uint8, b *bus) {
+	lo := uint16(c.L)
+	hi := uint16(c.H)
+	addr := hi<<8 | lo
+	v := b.read(addr)
+
+	c.A |= v
+	c.F.set(fz, c.A == 0)
+}
 
 // 0xB0 OR B    1 4 0 Z 0 0 0
 // 0xB1 OR C    1 4 0 Z 0 0 0
@@ -1187,13 +1374,56 @@ func (c *cpu) or_irr(opcode uint8, b *bus) { panic("not implemented") }
 // 0xB4 OR H    1 4 0 Z 0 0 0
 // 0xB5 OR L    1 4 0 Z 0 0 0
 // 0xB7 OR A    1 4 0 Z 0 0 0
-func (c *cpu) or_r(opcode uint8, b *bus) { panic("not implemented") }
+func (c *cpu) or_r(opcode uint8, b *bus) {
+	var v uint8
+	switch opcode {
+	case 0xB0:
+		v = c.B
+	case 0xB1:
+		v = c.C
+	case 0xB2:
+		v = c.D
+	case 0xB3:
+		v = c.E
+	case 0xB4:
+		v = c.H
+	case 0xB5:
+		v = c.L
+	case 0xB7:
+		v = c.A
+	}
+
+	c.A |= v
+	c.F.set(fz, c.A == 0)
+}
 
 // 0xC1 POP BC  1 12 0 - - - -
 // 0xD1 POP DE  1 12 0 - - - -
 // 0xE1 POP HL  1 12 0 - - - -
 // 0xF1 POP AF  1 12 0 Z N H C
-func (c *cpu) pop_rr(opcode uint8, b *bus) { panic("not implemented") }
+func (c *cpu) pop_rr(opcode uint8, b *bus) {
+	var rrhi, rrlo *uint8
+
+	switch opcode {
+	case 0xC1:
+		rrhi = &c.B
+		rrlo = &c.C
+	case 0xD1:
+		rrhi = &c.D
+		rrlo = &c.E
+	case 0xE1:
+		rrhi = &c.H
+		rrlo = &c.L
+	case 0xF1:
+		rrhi = &c.A
+		rrlo = (*uint8)(&c.F)
+	}
+
+	*rrlo = b.read(c.SP)
+	c.SP++
+	*rrhi = b.read(c.SP)
+	c.SP++
+}
 
 // 0xCB PREFIX CB       1 4 0 - - - -
 func (c *cpu) prefix_(opcode uint8, b *bus) { panic("not implemented") }
@@ -1202,25 +1432,125 @@ func (c *cpu) prefix_(opcode uint8, b *bus) { panic("not implemented") }
 // 0xD5 PUSH DE 1 16 0 - - - -
 // 0xE5 PUSH HL 1 16 0 - - - -
 // 0xF5 PUSH AF 1 16 0 - - - -
-func (c *cpu) push_rr(opcode uint8, b *bus) { panic("not implemented") }
+func (c *cpu) push_rr(opcode uint8, b *bus) {
+	var rrhi, rrlo *uint8
+
+	switch opcode {
+	case 0xC5:
+		rrhi = &c.B
+		rrlo = &c.C
+	case 0xD5:
+		rrhi = &c.D
+		rrlo = &c.E
+	case 0xE5:
+		rrhi = &c.H
+		rrlo = &c.L
+	case 0xF5:
+		rrhi = &c.A
+		rrlo = (*uint8)(&c.F)
+	}
+
+	c.SP--
+	b.write(c.SP, *rrhi)
+	c.SP--
+	b.write(c.SP, *rrlo)
+}
 
 // 0xC9 RET     1 16 0 - - - -
-func (c *cpu) ret(opcode uint8, b *bus) { panic("not implemented") }
+func (c *cpu) ret(opcode uint8, b *bus) {
+	lo := uint16(b.read(c.SP))
+	c.SP++
+	hi := uint16(b.read(c.SP))
+	c.SP++
+
+	c.PC = hi<<8 | lo
+
+	c.read(c.PC) // TODO: what actually gets read (or written)?
+}
 
 // 0xD0 RET NC  1 20 8 - - - -
-func (c *cpu) ret_NC(opcode uint8, b *bus) { panic("not implemented") }
+func (c *cpu) ret_NC(opcode uint8, b *bus) {
+	c.read(c.PC) // TODO: what actually gets read (or written)?
+
+	lo := uint16(b.read(c.SP))
+	c.SP++
+	hi := uint16(b.read(c.SP))
+	c.SP++
+
+	if c.F&fc > 0 {
+		return
+	}
+
+	c.PC = hi<<8 | lo
+
+	c.read(c.PC) // TODO: what actually gets read (or written)?
+}
 
 // 0xC0 RET NZ  1 20 8 - - - -
-func (c *cpu) ret_NZ(opcode uint8, b *bus) { panic("not implemented") }
+func (c *cpu) ret_NZ(opcode uint8, b *bus) {
+	c.read(c.PC) // TODO: what actually gets read (or written)?
+
+	lo := uint16(b.read(c.SP))
+	c.SP++
+	hi := uint16(b.read(c.SP))
+	c.SP++
+
+	if c.F&fz > 0 {
+		return
+	}
+
+	c.PC = hi<<8 | lo
+
+	c.read(c.PC) // TODO: what actually gets read (or written)?
+}
 
 // 0xC8 RET Z   1 20 8 - - - -
-func (c *cpu) ret_Z(opcode uint8, b *bus) { panic("not implemented") }
+func (c *cpu) ret_Z(opcode uint8, b *bus) {
+	c.read(c.PC) // TODO: what actually gets read (or written)?
+
+	lo := uint16(b.read(c.SP))
+	c.SP++
+	hi := uint16(b.read(c.SP))
+	c.SP++
+
+	if c.F&fz == 0 {
+		return
+	}
+
+	c.PC = hi<<8 | lo
+
+	c.read(c.PC) // TODO: what actually gets read (or written)? }
+}
 
 // 0xD8 RET C   1 20 8 - - - -
-func (c *cpu) ret_r(opcode uint8, b *bus) { panic("not implemented") }
+func (c *cpu) ret_r(opcode uint8, b *bus) {
+	c.read(c.PC) // TODO: what actually gets read (or written)?
+
+	lo := uint16(b.read(c.SP))
+	c.SP++
+	hi := uint16(b.read(c.SP))
+	c.SP++
+
+	if c.F&fc == 0 {
+		return
+	}
+
+	c.PC = hi<<8 | lo
+
+	c.read(c.PC) // TODO: what actually gets read (or written)?
+}
 
 // 0xD9 RETI    1 16 0 - - - -
-func (c *cpu) reti(opcode uint8, b *bus) { panic("not implemented") }
+func (c *cpu) reti(opcode uint8, b *bus) {
+	lo := uint16(b.read(c.SP))
+	c.SP++
+	hi := uint16(b.read(c.SP))
+	c.SP++
+
+	c.PC = hi<<8 | lo
+
+	c.read(c.PC) // TODO: what actually gets read (or written)?
+}
 
 // 0x17 RLA     1 4 0 0 0 0 C
 func (c *cpu) rla(opcode uint8, b *bus) { panic("not implemented") }
@@ -1245,10 +1575,26 @@ func (c *cpu) rrca(opcode uint8, b *bus) { panic("not implemented") }
 func (c *cpu) rst_(opcode uint8, b *bus) { panic("not implemented") }
 
 // 0xDE SBC A,d8        2 8 0 Z 1 H C
-func (c *cpu) sbc_r_d8(opcode uint8, b *bus) { panic("not implemented") }
+func (c *cpu) sbc_r_d8(opcode uint8, b *bus) {
+	v := b.read(c.PC)
+	c.PC++
+
+	v = v ^ 0xFF
+	c.addc8(c.A, v)
+	c.F.set(fn, true)
+}
 
 // 0x9E SBC A,(HL)      1 8 0 Z 1 H C
-func (c *cpu) sbc_r_irr(opcode uint8, b *bus) { panic("not implemented") }
+func (c *cpu) sbc_r_irr(opcode uint8, b *bus) {
+	lo := uint16(c.L)
+	hi := uint16(c.H)
+	addr := hi<<8 | lo
+	v := b.read(addr)
+
+	v = v ^ 0xFF
+	c.addc8(c.A, v)
+	c.F.set(fn, true)
+}
 
 // 0x98 SBC A,B 1 4 0 Z 1 H C
 // 0x99 SBC A,C 1 4 0 Z 1 H C
@@ -1257,19 +1603,59 @@ func (c *cpu) sbc_r_irr(opcode uint8, b *bus) { panic("not implemented") }
 // 0x9C SBC A,H 1 4 0 Z 1 H C
 // 0x9D SBC A,L 1 4 0 Z 1 H C
 // 0x9F SBC A,A 1 4 0 Z 1 H C
-func (c *cpu) sbc_r_r(opcode uint8, b *bus) { panic("not implemented") }
+func (c *cpu) sbc_r_r(opcode uint8, b *bus) {
+	var v uint8
+	switch opcode {
+	case 0x98:
+		v = c.B
+	case 0x99:
+		v = c.C
+	case 0x9A:
+		v = c.D
+	case 0x9B:
+		v = c.E
+	case 0x9C:
+		v = c.H
+	case 0x9D:
+		v = c.L
+	case 0x9F:
+		v = c.A
+	}
+
+	v = v ^ 0xFF
+	c.addc8(c.A, v)
+	c.F.set(fn, true)
+}
 
 // 0x37 SCF     1 4 0 - 0 0 1
-func (c *cpu) scf(opcode uint8, b *bus) { panic("not implemented") }
+func (c *cpu) scf(opcode uint8, b *bus) {
+	c.F.set(fc, true)
+}
 
 // 0x10 STOP 0  2 4 0 - - - -
 func (c *cpu) stop_(opcode uint8, b *bus) { panic("not implemented") }
 
 // 0xD6 SUB d8  2 8 0 Z 1 H C
-func (c *cpu) sub_d8(opcode uint8, b *bus) { panic("not implemented") }
+func (c *cpu) sub_d8(opcode uint8, b *bus) {
+	v := b.read(c.PC)
+	c.PC++
+
+	v = v ^ 0xFF + 1
+	c.add8(c.A, v)
+	c.F.set(fn, true)
+}
 
 // 0x96 SUB (HL)        1 8 0 Z 1 H C
-func (c *cpu) sub_irr(opcode uint8, b *bus) { panic("not implemented") }
+func (c *cpu) sub_irr(opcode uint8, b *bus) {
+	lo := uint16(c.L)
+	hi := uint16(c.H)
+	addr := hi<<8 | lo
+	v := b.read(addr)
+
+	v = v ^ 0xFF + 1
+	c.add8(c.A, v)
+	c.F.set(fn, true)
+}
 
 // 0x90 SUB B   1 4 0 Z 1 H C
 // 0x91 SUB C   1 4 0 Z 1 H C
@@ -1278,13 +1664,49 @@ func (c *cpu) sub_irr(opcode uint8, b *bus) { panic("not implemented") }
 // 0x94 SUB H   1 4 0 Z 1 H C
 // 0x95 SUB L   1 4 0 Z 1 H C
 // 0x97 SUB A   1 4 0 Z 1 H C
-func (c *cpu) sub_r(opcode uint8, b *bus) { panic("not implemented") }
+func (c *cpu) sub_r(opcode uint8, b *bus) {
+	var v uint8
+	switch opcode {
+	case 0x90:
+		v = c.B
+	case 0x91:
+		v = c.C
+	case 0x92:
+		v = c.D
+	case 0x93:
+		v = c.E
+	case 0x94:
+		v = c.H
+	case 0x95:
+		v = c.L
+	case 0x97:
+		v = c.A
+	}
+
+	v = v ^ 0xFF + 1
+	c.add8(c.A, v)
+	c.F.set(fn, true)
+}
 
 // 0xEE XOR d8  2 8 0 Z 0 0 0
-func (c *cpu) xor_d8(opcode uint8, b *bus) { panic("not implemented") }
+func (c *cpu) xor_d8(opcode uint8, b *bus) {
+	v := b.read(c.PC)
+	c.PC++
+
+	c.A = c.A ^ v
+	c.F.set(fz, c.A == 0)
+}
 
 // 0xAE XOR (HL)        1 8 0 Z 0 0 0
-func (c *cpu) xor_irr(opcode uint8, b *bus) { panic("not implemented") }
+func (c *cpu) xor_irr(opcode uint8, b *bus) {
+	lo := uint16(c.L)
+	hi := uint16(c.H)
+	addr := hi<<8 | lo
+	v := b.read(addr)
+
+	c.A = c.A ^ v
+	c.F.set(fz, c.A == 0)
+}
 
 // 0xA8 XOR B   1 4 0 Z 0 0 0
 // 0xA9 XOR C   1 4 0 Z 0 0 0
@@ -1293,4 +1715,25 @@ func (c *cpu) xor_irr(opcode uint8, b *bus) { panic("not implemented") }
 // 0xAC XOR H   1 4 0 Z 0 0 0
 // 0xAD XOR L   1 4 0 Z 0 0 0
 // 0xAF XOR A   1 4 0 Z 0 0 0
-func (c *cpu) xor_r(opcode uint8, b *bus) { panic("not implemented") }
+func (c *cpu) xor_r(opcode uint8, b *bus) {
+	var v uint8
+	switch opcode {
+	case 0xA8:
+		v = c.B
+	case 0xA9:
+		v = c.C
+	case 0xAA:
+		v = c.D
+	case 0xAB:
+		v = c.E
+	case 0xAC:
+		v = c.H
+	case 0xAD:
+		v = c.L
+	case 0xAF:
+		v = c.A
+	}
+
+	c.A = c.A ^ v
+	c.F.set(fz, c.A == 0)
+}
