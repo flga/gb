@@ -26,7 +26,12 @@ func (r memory) write(addr uint16, v uint8) {
 	r[int(addr)%cap(r)] = v
 }
 
-type bus struct {
+type bus interface {
+	read(addr uint16) uint8
+	write(addr uint16, v uint8)
+}
+
+type mmu struct {
 	cpu       *cpu
 	ppu       *ppu
 	apu       *apu
@@ -39,8 +44,8 @@ type bus struct {
 	cartridge *cartridge
 }
 
-func newBus() *bus {
-	ret := &bus{
+func newMMU() *mmu {
+	ret := &mmu{
 		cpu: &cpu{
 			A:  0x01,
 			F:  0xB0,
@@ -98,7 +103,7 @@ func newBus() *bus {
 	return ret
 }
 
-func (b *bus) clock() {
+func (b *mmu) clock() {
 	// todo: frame & apu samples
 	// todo: frequencies
 
@@ -107,7 +112,7 @@ func (b *bus) clock() {
 	b.ppu.clock(b)
 }
 
-func (b *bus) read(addr uint16) uint8 {
+func (b *mmu) read(addr uint16) uint8 {
 	addr = b.cartridge.translateRead(addr)
 
 	// Start	End		Description						Notes
@@ -186,7 +191,7 @@ func (b *bus) read(addr uint16) uint8 {
 	return 0
 }
 
-func (b *bus) write(addr uint16, v uint8) {
+func (b *mmu) write(addr uint16, v uint8) {
 	addr = b.cartridge.translateWrite(addr)
 
 	// Start	End		Description						Notes

@@ -2,7 +2,7 @@ package gb
 
 type ppu struct{}
 
-func (p *ppu) clock(b *bus) {
+func (p *ppu) clock(b bus) {
 	//todo: frames
 }
 

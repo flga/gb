@@ -18,12 +18,12 @@ const (
 )
 
 type GameBoy struct {
-	bus *bus
+	bus *mmu
 }
 
 func New() *GameBoy {
 	return &GameBoy{
-		bus: newBus(),
+		bus: newMMU(),
 	}
 }
 
