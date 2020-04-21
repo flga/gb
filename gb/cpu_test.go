@@ -1575,6 +1575,713 @@ func TestCpuOps0x40_0x4F(t *testing.T) {
 	}
 }
 
+func TestCpuOps0x50_0x5F(t *testing.T) {
+	tests := map[string]cpuSingleTest{
+
+		"LD D, B": {
+			code: []byte{0x50},
+			pre: cpuData{
+				B:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				B:  0x42,
+				D:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD D, C": {
+			code: []byte{0x51},
+			pre: cpuData{
+				C:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				C:  0x42,
+				D:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD D, D": {
+			code: []byte{0x52},
+			pre: cpuData{
+				D:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				D:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD D, E": {
+			code: []byte{0x53},
+			pre: cpuData{
+				E:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				E:  0x42,
+				D:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD D, H": {
+			code: []byte{0x54},
+			pre: cpuData{
+				H:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				H:  0x42,
+				D:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD D, L": {
+			code: []byte{0x55},
+			pre: cpuData{
+				L:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				L:  0x42,
+				D:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD D, (HL)": {
+			code: []byte{0x56},
+			pre: cpuData{
+				H:  0x00,
+				L:  0x02,
+				PC: 0x8000,
+			},
+			bus: testBus{0x0002: 0x42},
+			want: cpuData{
+				D:  0x42,
+				H:  0x00,
+				L:  0x02,
+				PC: 0x8001,
+			},
+			wantbus: testBus{0x0002: 0x42},
+		},
+		"LD D, A": {
+			code: []byte{0x57},
+			pre: cpuData{
+				A:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				A:  0x42,
+				D:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD E, B": {
+			code: []byte{0x58},
+			pre: cpuData{
+				B:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				B:  0x42,
+				E:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD E, C": {
+			code: []byte{0x59},
+			pre: cpuData{
+				C:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				C:  0x42,
+				E:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD E, D": {
+			code: []byte{0x5A},
+			pre: cpuData{
+				D:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				D:  0x42,
+				E:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD E, E": {
+			code: []byte{0x5B},
+			pre: cpuData{
+				E:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				E:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD E, H": {
+			code: []byte{0x5C},
+			pre: cpuData{
+				H:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				H:  0x42,
+				E:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD E, L": {
+			code: []byte{0x5D},
+			pre: cpuData{
+				L:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				L:  0x42,
+				E:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD E, (HL)": {
+			code: []byte{0x5E},
+			pre: cpuData{
+				H:  0x00,
+				L:  0x02,
+				PC: 0x8000,
+			},
+			bus: testBus{0x0002: 0x42},
+			want: cpuData{
+				H:  0x00,
+				L:  0x02,
+				E:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{0x0002: 0x42},
+		},
+		"LD E, A": {
+			code: []byte{0x5F},
+			pre: cpuData{
+				A:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				A:  0x42,
+				E:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+	}
+
+	for mnemonic, tt := range tests {
+		testInst(mnemonic, tt, t)
+	}
+}
+
+func TestCpuOps0x60_0x6F(t *testing.T) {
+	tests := map[string]cpuSingleTest{
+		"LD H, B": {
+			code: []byte{0x60},
+			pre: cpuData{
+				B:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				B:  0x42,
+				H:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD H, C": {
+			code: []byte{0x61},
+			pre: cpuData{
+				C:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				C:  0x42,
+				H:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD H, D": {
+			code: []byte{0x62},
+			pre: cpuData{
+				D:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				D:  0x42,
+				H:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD H, E": {
+			code: []byte{0x63},
+			pre: cpuData{
+				E:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				E:  0x42,
+				H:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD H, H": {
+			code: []byte{0x64},
+			pre: cpuData{
+				H:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				H:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD H, L": {
+			code: []byte{0x65},
+			pre: cpuData{
+				L:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				L:  0x42,
+				H:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD H, (HL)": {
+			code: []byte{0x66},
+			pre: cpuData{
+				H:  0x00,
+				L:  0x02,
+				PC: 0x8000,
+			},
+			bus: testBus{0x0002: 0x42},
+			want: cpuData{
+				H:  0x42,
+				L:  0x02,
+				PC: 0x8001,
+			},
+			wantbus: testBus{0x0002: 0x42},
+		},
+		"LD H, A": {
+			code: []byte{0x67},
+			pre: cpuData{
+				A:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				A:  0x42,
+				H:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD L, B": {
+			code: []byte{0x68},
+			pre: cpuData{
+				B:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				B:  0x42,
+				L:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD L, C": {
+			code: []byte{0x69},
+			pre: cpuData{
+				C:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				C:  0x42,
+				L:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD L, D": {
+			code: []byte{0x6A},
+			pre: cpuData{
+				D:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				D:  0x42,
+				L:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD L, E": {
+			code: []byte{0x6B},
+			pre: cpuData{
+				E:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				E:  0x42,
+				L:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD L, H": {
+			code: []byte{0x6C},
+			pre: cpuData{
+				H:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				H:  0x42,
+				L:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD L, L": {
+			code: []byte{0x6D},
+			pre: cpuData{
+				L:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				L:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD L, (HL)": {
+			code: []byte{0x6E},
+			pre: cpuData{
+				H:  0x00,
+				L:  0x02,
+				PC: 0x8000,
+			},
+			bus: testBus{0x0002: 0x42},
+			want: cpuData{
+				H:  0x00,
+				L:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{0x0002: 0x42},
+		},
+		"LD L, A": {
+			code: []byte{0x6F},
+			pre: cpuData{
+				A:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				A:  0x42,
+				L:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+	}
+
+	for mnemonic, tt := range tests {
+		testInst(mnemonic, tt, t)
+	}
+}
+
+func TestCpuOps0x70_0x7F(t *testing.T) {
+	tests := map[string]cpuSingleTest{
+		"LD (HL), B": {
+			code: []byte{0x70},
+			pre: cpuData{
+				B:  0x42,
+				H:  0x00,
+				L:  0x02,
+				PC: 0x8000,
+			},
+			bus: testBus{0x0002: 0x00},
+			want: cpuData{
+				B:  0x42,
+				H:  0x00,
+				L:  0x02,
+				PC: 0x8001,
+			},
+			wantbus: testBus{0x0002: 0x42},
+		},
+		"LD (HL), C": {
+			code: []byte{0x71},
+			pre: cpuData{
+				C:  0x42,
+				H:  0x00,
+				L:  0x02,
+				PC: 0x8000,
+			},
+			bus: testBus{0x0002: 0x00},
+			want: cpuData{
+				C:  0x42,
+				H:  0x00,
+				L:  0x02,
+				PC: 0x8001,
+			},
+			wantbus: testBus{0x0002: 0x42},
+		},
+		"LD (HL), D": {
+			code: []byte{0x72},
+			pre: cpuData{
+				D:  0x42,
+				H:  0x00,
+				L:  0x02,
+				PC: 0x8000,
+			},
+			bus: testBus{0x0002: 0x00},
+			want: cpuData{
+				D:  0x42,
+				H:  0x00,
+				L:  0x02,
+				PC: 0x8001,
+			},
+			wantbus: testBus{0x0002: 0x42},
+		},
+		"LD (HL), E": {
+			code: []byte{0x73},
+			pre: cpuData{
+				E:  0x42,
+				H:  0x00,
+				L:  0x02,
+				PC: 0x8000,
+			},
+			bus: testBus{0x0002: 0x00},
+			want: cpuData{
+				E:  0x42,
+				H:  0x00,
+				L:  0x02,
+				PC: 0x8001,
+			},
+			wantbus: testBus{0x0002: 0x42},
+		},
+		"LD (HL), H": {
+			code: []byte{0x74},
+			pre: cpuData{
+				H:  0x42,
+				L:  0x02,
+				PC: 0x8000,
+			},
+			bus: testBus{0x4202: 0x42},
+			want: cpuData{
+				H:  0x42,
+				L:  0x02,
+				PC: 0x8001,
+			},
+			wantbus: testBus{0x4202: 0x42},
+		},
+		"LD (HL), L": {
+			code: []byte{0x75},
+			pre: cpuData{
+				H:  0x00,
+				L:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{0x0042: 0x00},
+			want: cpuData{
+				H:  0x00,
+				L:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{0x0042: 0x42},
+		},
+		// TODO: halt
+		"LD (HL), A": {
+			code: []byte{0x77},
+			pre: cpuData{
+				A:  0x42,
+				H:  0x00,
+				L:  0x02,
+				PC: 0x8000,
+			},
+			bus: testBus{0x0002: 0x00},
+			want: cpuData{
+				A:  0x42,
+				H:  0x00,
+				L:  0x02,
+				PC: 0x8001,
+			},
+			wantbus: testBus{0x0002: 0x42},
+		},
+		"LD A, B": {
+			code: []byte{0x78},
+			pre: cpuData{
+				B:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				A:  0x42,
+				B:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD A, C": {
+			code: []byte{0x79},
+			pre: cpuData{
+				C:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				A:  0x42,
+				C:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD A, D": {
+			code: []byte{0x7A},
+			pre: cpuData{
+				D:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				A:  0x42,
+				D:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD A, E": {
+			code: []byte{0x7B},
+			pre: cpuData{
+				E:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				A:  0x42,
+				E:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD A, H": {
+			code: []byte{0x7C},
+			pre: cpuData{
+				H:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				A:  0x42,
+				H:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD A, L": {
+			code: []byte{0x7D},
+			pre: cpuData{
+				L:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				A:  0x42,
+				L:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD A, (HL)": {
+			code: []byte{0x7E},
+			pre: cpuData{
+				H:  0x00,
+				L:  0x02,
+				PC: 0x8000,
+			},
+			bus: testBus{0x0002: 0x42},
+			want: cpuData{
+				A:  0x42,
+				H:  0x00,
+				L:  0x02,
+				PC: 0x8001,
+			},
+			wantbus: testBus{0x0002: 0x42},
+		},
+		"LD A, A": {
+			code: []byte{0x7F},
+			pre: cpuData{
+				A:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				A:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+	}
+
+	for mnemonic, tt := range tests {
+		testInst(mnemonic, tt, t)
+	}
+}
+
 func testInst(mnemonic string, tt cpuSingleTest, t *testing.T) {
 	t.Run(mnemonic, func(t *testing.T) {
 		c := &cpu{
