@@ -348,59 +348,395 @@ func TestCpuOps0x00_0x0F(t *testing.T) {
 	}
 
 	for mnemonic, tt := range tests {
-		func(mnemonic string, tt cpuSingleTest) {
-			t.Run(mnemonic, func(t *testing.T) {
-				c := &cpu{
-					A:  tt.pre.A,
-					F:  tt.pre.F,
-					B:  tt.pre.B,
-					C:  tt.pre.C,
-					D:  tt.pre.D,
-					E:  tt.pre.E,
-					H:  tt.pre.H,
-					L:  tt.pre.L,
-					SP: tt.pre.SP,
-					PC: tt.pre.PC,
-				}
-				c.init()
-
-				// "load rom"
-				for i, op := range tt.code {
-					tt.bus.write(tt.pre.PC+uint16(i), op)
-				}
-
-				c.executeInst(tt.bus)
-
-				// "unload rom"
-				for i := range tt.code {
-					delete(tt.bus, tt.pre.PC+uint16(i))
-				}
-
-				got := cpuData{
-					A:  c.A,
-					F:  c.F,
-					B:  c.B,
-					C:  c.C,
-					D:  c.D,
-					E:  c.E,
-					H:  c.H,
-					L:  c.L,
-					SP: c.SP,
-					PC: c.PC,
-				}
-
-				if got != tt.want {
-					t.Errorf("cpu.executeInst()")
-					t.Logf("_pre %s", tt.pre)
-					t.Logf("_got %s", got)
-					t.Logf("want %s", tt.want)
-				}
-
-				if !reflect.DeepEqual(tt.bus, tt.wantbus) {
-					t.Errorf("cpu.executeInst() bus = %v, want %v", tt.bus, tt.wantbus)
-				}
-			})
-
-		}(mnemonic, tt)
+		testInst(mnemonic, tt, t)
 	}
+}
+
+func TestCpuOps0x10_0x1F(t *testing.T) {
+	tests := map[string]cpuSingleTest{
+		"LD (DE), A": {
+			code: []byte{0x12},
+			pre: cpuData{
+				A:  0x42,
+				D:  0x00,
+				E:  0x02,
+				PC: 0x8000,
+			},
+			bus: testBus{0x02: 0x00},
+			want: cpuData{
+				A:  0x42,
+				D:  0x00,
+				E:  0x02,
+				PC: 0x8001,
+			},
+			wantbus: testBus{0x02: 0x42},
+		},
+		"INC D": {
+			code: []byte{0x14},
+			pre: cpuData{
+				D:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				D:  0x43,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"INC D zero": {
+			code: []byte{0x14},
+			pre: cpuData{
+				D:  0xFF,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				D:  0x00,
+				F:  fz | fh,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"INC D half carry": {
+			code: []byte{0x14},
+			pre: cpuData{
+				D:  0x0F,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				D:  0x10,
+				F:  fh,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"DEC D": {
+			code: []byte{0x15},
+			pre: cpuData{
+				D:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				D:  0x41,
+				F:  fn,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"DEC D zero": {
+			code: []byte{0x15},
+			pre: cpuData{
+				D:  0x01,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				D:  0x00,
+				F:  fn | fz,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"DEC D half carry": {
+			code: []byte{0x15},
+			pre: cpuData{
+				D:  0x00,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				D:  0xFF,
+				F:  fn | fh,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD D, n": {
+			code: []byte{0x16, 0x42},
+			pre: cpuData{
+				D:  0x00,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				D:  0x42,
+				PC: 0x8002,
+			},
+			wantbus: testBus{},
+		},
+		"RLA": {
+			code: []byte{0x17},
+			pre: cpuData{
+				A:  0x55,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				A:  0xAA,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"RLA carry": {
+			code: []byte{0x17},
+			pre: cpuData{
+				A:  0xAA,
+				F:  fc,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				A:  0x55,
+				F:  fc,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD A, (DE)": {
+			code: []byte{0x1A},
+			pre: cpuData{
+				A:  0x00,
+				D:  0x00,
+				E:  0x02,
+				PC: 0x8000,
+			},
+			bus: testBus{0x0002: 0x42},
+			want: cpuData{
+				A:  0x42,
+				D:  0x00,
+				E:  0x02,
+				PC: 0x8001,
+			},
+			wantbus: testBus{0x0002: 0x42},
+		},
+		"INC E": {
+			code: []byte{0x1C},
+			pre: cpuData{
+				E:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				E:  0x43,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"INC E zero": {
+			code: []byte{0x1C},
+			pre: cpuData{
+				E:  0xFF,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				E:  0x00,
+				F:  fz | fh,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"INC E half carry": {
+			code: []byte{0x1C},
+			pre: cpuData{
+				E:  0x0F,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				E:  0x10,
+				F:  fh,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"DEC E": {
+			code: []byte{0x1D},
+			pre: cpuData{
+				E:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				E:  0x41,
+				F:  fn,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"DEC E zero": {
+			code: []byte{0x1D},
+			pre: cpuData{
+				E:  0x01,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				E:  0x00,
+				F:  fn | fz,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"DEC E half carry": {
+			code: []byte{0x1D},
+			pre: cpuData{
+				E:  0x00,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				E:  0xFF,
+				F:  fn | fh,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD E, n": {
+			code: []byte{0x1E, 0x42},
+			pre: cpuData{
+				E:  0x00,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				E:  0x42,
+				PC: 0x8002,
+			},
+			wantbus: testBus{},
+		},
+		"RRA": {
+			code: []byte{0x1F},
+			pre: cpuData{
+				A:  0xAA,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				A:  0x55,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"RRA carry": {
+			code: []byte{0x1F},
+			pre: cpuData{
+				A:  0x55,
+				F:  fc,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				A:  0xAA,
+				F:  fc,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+	}
+
+	for mnemonic, tt := range tests {
+		testInst(mnemonic, tt, t)
+	}
+}
+
+func TestCpuOps0x20_0x2F(t *testing.T) {
+	tests := map[string]cpuSingleTest{
+		"JR NZ, e": {
+			code: []byte{0x20, 0x02},
+			pre: cpuData{
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				PC: 0x8004,
+			},
+			wantbus: testBus{},
+		},
+		"JR NZ, e negative offset": {
+			code: []byte{0x20, 0xFD}, // 0xFD = -3
+			pre: cpuData{
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				PC: 0x7FFF,
+			},
+			wantbus: testBus{},
+		},
+		"JR NZ, NO JUMP": {
+			code: []byte{0x20, 0xFD}, // 0xFD = -3
+			pre: cpuData{
+				F:  fz,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				F:  fz,
+				PC: 0x8002,
+			},
+			wantbus: testBus{},
+		},
+	}
+
+	for mnemonic, tt := range tests {
+		testInst(mnemonic, tt, t)
+	}
+}
+
+func testInst(mnemonic string, tt cpuSingleTest, t *testing.T) {
+	t.Run(mnemonic, func(t *testing.T) {
+		c := &cpu{
+			A:  tt.pre.A,
+			F:  tt.pre.F,
+			B:  tt.pre.B,
+			C:  tt.pre.C,
+			D:  tt.pre.D,
+			E:  tt.pre.E,
+			H:  tt.pre.H,
+			L:  tt.pre.L,
+			SP: tt.pre.SP,
+			PC: tt.pre.PC,
+		}
+		c.init()
+
+		// "load rom"
+		for i, op := range tt.code {
+			tt.bus.write(tt.pre.PC+uint16(i), op)
+		}
+
+		c.executeInst(tt.bus)
+
+		// "unload rom"
+		for i := range tt.code {
+			delete(tt.bus, tt.pre.PC+uint16(i))
+		}
+
+		got := cpuData{
+			A:  c.A,
+			F:  c.F,
+			B:  c.B,
+			C:  c.C,
+			D:  c.D,
+			E:  c.E,
+			H:  c.H,
+			L:  c.L,
+			SP: c.SP,
+			PC: c.PC,
+		}
+
+		if got != tt.want {
+			t.Errorf("cpu.executeInst()")
+			t.Logf("_pre %s", tt.pre)
+			t.Logf("_got %s", got)
+			t.Logf("want %s", tt.want)
+		}
+
+		if !reflect.DeepEqual(tt.bus, tt.wantbus) {
+			t.Errorf("cpu.executeInst() bus = %v, want %v", tt.bus, tt.wantbus)
+		}
+	})
 }

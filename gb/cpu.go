@@ -812,6 +812,7 @@ func (c *cpu) jp_r_a16(opcode uint8, b bus) {
 // 0x30 JR NC,r8        2 12 8 - - - -
 func (c *cpu) jr_NC_r8(opcode uint8, b bus) {
 	r8 := uint16(int8(b.read(c.PC)))
+	c.PC++
 
 	if c.F&fc > 0 {
 		return
@@ -824,8 +825,9 @@ func (c *cpu) jr_NC_r8(opcode uint8, b bus) {
 // 0x20 JR NZ,r8        2 12 8 - - - -
 func (c *cpu) jr_NZ_r8(opcode uint8, b bus) {
 	r8 := uint16(int8(b.read(c.PC)))
+	c.PC++
 
-	if c.F&fz == 0 {
+	if c.F&fz > 0 {
 		return
 	}
 
@@ -836,6 +838,7 @@ func (c *cpu) jr_NZ_r8(opcode uint8, b bus) {
 // 0x28 JR Z,r8 2 12 8 - - - -
 func (c *cpu) jr_Z_r8(opcode uint8, b bus) {
 	r8 := uint16(int8(b.read(c.PC)))
+	c.PC++
 
 	if c.F&fz == 0 {
 		return
@@ -848,6 +851,8 @@ func (c *cpu) jr_Z_r8(opcode uint8, b bus) {
 // 0x18 JR r8   2 12 0 - - - -
 func (c *cpu) jr_r8(opcode uint8, b bus) {
 	r8 := uint16(int8(b.read(c.PC)))
+	c.PC++
+
 	c.PC += r8
 	b.read(c.PC) // TODO: what actually gets read (or written)? }
 }
@@ -855,6 +860,7 @@ func (c *cpu) jr_r8(opcode uint8, b bus) {
 // 0x38 JR C,r8 2 12 8 - - - -
 func (c *cpu) jr_r_r8(opcode uint8, b bus) {
 	r8 := uint16(int8(b.read(c.PC)))
+	c.PC++
 
 	if c.F&fc == 0 {
 		return
