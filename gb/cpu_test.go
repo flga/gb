@@ -1334,6 +1334,247 @@ func TestCpuOps0x30_0x3F(t *testing.T) {
 	}
 }
 
+func TestCpuOps0x40_0x4F(t *testing.T) {
+	tests := map[string]cpuSingleTest{
+		"LD B, B": {
+			code: []byte{0x40},
+			pre: cpuData{
+				B:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				B:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD B, C": {
+			code: []byte{0x41},
+			pre: cpuData{
+				B:  0x00,
+				C:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				B:  0x42,
+				C:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD B, D": {
+			code: []byte{0x42},
+			pre: cpuData{
+				B:  0x00,
+				D:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				B:  0x42,
+				D:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD B, E": {
+			code: []byte{0x43},
+			pre: cpuData{
+				B:  0x00,
+				E:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				B:  0x42,
+				E:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD B, H": {
+			code: []byte{0x44},
+			pre: cpuData{
+				B:  0x00,
+				H:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				B:  0x42,
+				H:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD B, L": {
+			code: []byte{0x45},
+			pre: cpuData{
+				B:  0x00,
+				L:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				B:  0x42,
+				L:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD B, (HL)": {
+			code: []byte{0x46},
+			pre: cpuData{
+				B:  0x00,
+				H:  0x00,
+				L:  0x02,
+				PC: 0x8000,
+			},
+			bus: testBus{0x0002: 0x42},
+			want: cpuData{
+				B:  0x42,
+				H:  0x00,
+				L:  0x02,
+				PC: 0x8001,
+			},
+			wantbus: testBus{0x0002: 0x42},
+		},
+		"LD C, C": {
+			code: []byte{0x49},
+			pre: cpuData{
+				C:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				C:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD B, A": {
+			code: []byte{0x47},
+			pre: cpuData{
+				A:  0x42,
+				B:  0x00,
+				PC: 0x8000,
+			}, bus: testBus{},
+			want: cpuData{
+				A:  0x42,
+				B:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD C, B": {
+			code: []byte{0x48},
+			pre: cpuData{
+				B:  0x42,
+				C:  0x00,
+				PC: 0x8000,
+			}, bus: testBus{},
+			want: cpuData{
+				B:  0x42,
+				C:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD C, D": {
+			code: []byte{0x4A},
+			pre: cpuData{
+				C:  0x00,
+				D:  0x42,
+				PC: 0x8000,
+			}, bus: testBus{},
+			want: cpuData{
+				C:  0x42,
+				D:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD C, E": {
+			code: []byte{0x4B},
+			pre: cpuData{
+				C:  0x00,
+				E:  0x42,
+				PC: 0x8000,
+			}, bus: testBus{},
+			want: cpuData{
+				C:  0x42,
+				E:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD C, H": {
+			code: []byte{0x4C},
+			pre: cpuData{
+				C:  0x00,
+				H:  0x42,
+				PC: 0x8000,
+			}, bus: testBus{},
+			want: cpuData{
+				C:  0x42,
+				H:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD C, L": {
+			code: []byte{0x4D},
+			pre: cpuData{
+				C:  0x00,
+				L:  0x42,
+				PC: 0x8000,
+			}, bus: testBus{},
+			want: cpuData{
+				C:  0x42,
+				L:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD C, (HL)": {
+			code: []byte{0x4E},
+			pre: cpuData{
+				C:  0x00,
+				H:  0x00,
+				L:  0x02,
+				PC: 0x8000,
+			}, bus: testBus{0x0002: 0x42},
+			want: cpuData{
+				C:  0x42,
+				H:  0x00,
+				L:  0x02,
+				PC: 0x8001,
+			},
+			wantbus: testBus{0x0002: 0x42},
+		},
+		"LD C, A": {
+			code: []byte{0x4F},
+			pre: cpuData{
+				A:  0x42,
+				C:  0x00,
+				PC: 0x8000,
+			}, bus: testBus{},
+			want: cpuData{
+				A:  0x42,
+				C:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+	}
+
+	for mnemonic, tt := range tests {
+		testInst(mnemonic, tt, t)
+	}
+}
+
 func testInst(mnemonic string, tt cpuSingleTest, t *testing.T) {
 	t.Run(mnemonic, func(t *testing.T) {
 		c := &cpu{

@@ -66,8 +66,8 @@ type mapper interface {
 
 type mapper0 struct{}
 
-func (_ mapper0) translateRead(addr uint16) uint16  { return addr }
-func (_ mapper0) translateWrite(addr uint16) uint16 { return addr }
+func (mapper0) translateRead(addr uint16) uint16  { return addr }
+func (mapper0) translateWrite(addr uint16) uint16 { return addr }
 
 type CartridgeInfo struct {
 	Title                string
