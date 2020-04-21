@@ -64,7 +64,19 @@ func TestCpuOps0x00_0x0F(t *testing.T) {
 			},
 			wantbus: testBus{},
 		},
-		// 0x01: TODO
+		"LD BC,d16": {
+			code: []byte{0x01, 0x41, 0x42},
+			pre: cpuData{
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				B:  0x42,
+				C:  0x41,
+				PC: 0x8003,
+			},
+			wantbus: testBus{},
+		},
 		"LD (BC), A": {
 			code: []byte{0x02},
 			pre: cpuData{
@@ -80,11 +92,53 @@ func TestCpuOps0x00_0x0F(t *testing.T) {
 				C:  0x02,
 				PC: 0x8001,
 			},
-			wantbus: testBus{
-				0x0002: 0x42,
-			},
+			wantbus: testBus{0x0002: 0x42},
 		},
-		// 0x03: TODO
+		"INC BC": {
+			code: []byte{0x03},
+			pre: cpuData{
+				B:  0x41,
+				C:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				B:  0x41,
+				C:  0x43,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"INC BC zero": {
+			code: []byte{0x03},
+			pre: cpuData{
+				B:  0xFF,
+				C:  0xFF,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				B:  0x00,
+				C:  0x00,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"INC BC half carry": {
+			code: []byte{0x03},
+			pre: cpuData{
+				B:  0x00,
+				C:  0xFF,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				B:  0x01,
+				C:  0x00,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
 		"INC B": {
 			code: []byte{0x04},
 			pre: cpuData{
@@ -207,6 +261,78 @@ func TestCpuOps0x00_0x0F(t *testing.T) {
 			},
 			wantbus: testBus{},
 		},
+		"LD (a16),SP": {
+			code: []byte{0x08, 0x41, 0x42},
+			pre: cpuData{
+				SP: 0x1424,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				SP: 0x1424,
+				PC: 0x8003,
+			},
+			wantbus: testBus{0x4241: 0x24, 0x4242: 0x14},
+		},
+		"ADD HL,BC": {
+			code: []byte{0x09},
+			pre: cpuData{
+				B:  0x0F,
+				C:  0xFC,
+				H:  0x00,
+				L:  0x03,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				B:  0x0F,
+				C:  0xFC,
+				H:  0x0F,
+				L:  0xFF,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"ADD HL,BC carry": {
+			code: []byte{0x09},
+			pre: cpuData{
+				B:  0xB7,
+				C:  0xFD,
+				H:  0x50,
+				L:  0x02,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				B:  0xB7,
+				C:  0xFD,
+				H:  0x07,
+				L:  0xFF,
+				F:  fc,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"ADD HL,BC half carry": {
+			code: []byte{0x09},
+			pre: cpuData{
+				B:  0x06,
+				C:  0x05,
+				H:  0x8A,
+				L:  0x23,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				B:  0x06,
+				C:  0x05,
+				H:  0x90,
+				L:  0x28,
+				F:  fh,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
 		"LD A, (BC)": {
 			code: []byte{0x0A},
 			pre: cpuData{
@@ -222,6 +348,51 @@ func TestCpuOps0x00_0x0F(t *testing.T) {
 				PC: 0x8001,
 			},
 			wantbus: testBus{0x0002: 0x42},
+		},
+		"DEC BC": {
+			code: []byte{0x0B},
+			pre: cpuData{
+				B:  0x00,
+				C:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				B:  0x00,
+				C:  0x41,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"DEC BC zero": {
+			code: []byte{0x0B},
+			pre: cpuData{
+				B:  0x00,
+				C:  0x01,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				B:  0x00,
+				C:  0x00,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"DEC BC half carry": {
+			code: []byte{0x0B},
+			pre: cpuData{
+				B:  0x01,
+				C:  0x00,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				B:  0x00,
+				C:  0xFF,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
 		},
 		"INC C": {
 			code: []byte{0x0C},
@@ -354,6 +525,20 @@ func TestCpuOps0x00_0x0F(t *testing.T) {
 
 func TestCpuOps0x10_0x1F(t *testing.T) {
 	tests := map[string]cpuSingleTest{
+		// TODO: STOP
+		"LD DE,d16": {
+			code: []byte{0x11, 0x41, 0x42},
+			pre: cpuData{
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				D:  0x42,
+				E:  0x41,
+				PC: 0x8003,
+			},
+			wantbus: testBus{},
+		},
 		"LD (DE), A": {
 			code: []byte{0x12},
 			pre: cpuData{
@@ -370,6 +555,51 @@ func TestCpuOps0x10_0x1F(t *testing.T) {
 				PC: 0x8001,
 			},
 			wantbus: testBus{0x02: 0x42},
+		},
+		"INC DE": {
+			code: []byte{0x13},
+			pre: cpuData{
+				D:  0x41,
+				E:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				D:  0x41,
+				E:  0x43,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"INC DE zero": {
+			code: []byte{0x13},
+			pre: cpuData{
+				D:  0xFF,
+				E:  0xFF,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				D:  0x00,
+				E:  0x00,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"INC DE half carry": {
+			code: []byte{0x13},
+			pre: cpuData{
+				D:  0x00,
+				E:  0xFF,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				D:  0x01,
+				E:  0x00,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
 		},
 		"INC D": {
 			code: []byte{0x14},
@@ -495,6 +725,87 @@ func TestCpuOps0x10_0x1F(t *testing.T) {
 			},
 			wantbus: testBus{},
 		},
+		"JR e": {
+			code: []byte{0x18, 0x02},
+			pre: cpuData{
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				PC: 0x8004,
+			},
+			wantbus: testBus{},
+		},
+		"JR e negative offset": {
+			code: []byte{0x18, 0xFD}, // 0xFD = -3
+			pre: cpuData{
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				PC: 0x7FFF,
+			},
+			wantbus: testBus{},
+		},
+		"ADD HL,DE": {
+			code: []byte{0x19},
+			pre: cpuData{
+				D:  0x0F,
+				E:  0xFC,
+				H:  0x00,
+				L:  0x03,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				D:  0x0F,
+				E:  0xFC,
+				H:  0x0F,
+				L:  0xFF,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"ADD HL,DE carry": {
+			code: []byte{0x19},
+			pre: cpuData{
+				D:  0xB7,
+				E:  0xFD,
+				H:  0x50,
+				L:  0x02,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				D:  0xB7,
+				E:  0xFD,
+				H:  0x07,
+				L:  0xFF,
+				F:  fc,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"ADD HL,DE half carry": {
+			code: []byte{0x19},
+			pre: cpuData{
+				D:  0x06,
+				E:  0x05,
+				H:  0x8A,
+				L:  0x23,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				D:  0x06,
+				E:  0x05,
+				H:  0x90,
+				L:  0x28,
+				F:  fh,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
 		"LD A, (DE)": {
 			code: []byte{0x1A},
 			pre: cpuData{
@@ -511,6 +822,51 @@ func TestCpuOps0x10_0x1F(t *testing.T) {
 				PC: 0x8001,
 			},
 			wantbus: testBus{0x0002: 0x42},
+		},
+		"DEC DE": {
+			code: []byte{0x1B},
+			pre: cpuData{
+				D:  0x00,
+				E:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				D:  0x00,
+				E:  0x41,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"DEC DE zero": {
+			code: []byte{0x1B},
+			pre: cpuData{
+				D:  0x00,
+				E:  0x01,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				D:  0x00,
+				E:  0x00,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"DEC DE half carry": {
+			code: []byte{0x1B},
+			pre: cpuData{
+				D:  0x01,
+				E:  0x00,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				D:  0x00,
+				E:  0xFF,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
 		},
 		"INC E": {
 			code: []byte{0x1C},
@@ -680,6 +1036,19 @@ func TestCpuOps0x20_0x2F(t *testing.T) {
 			},
 			wantbus: testBus{},
 		},
+		"LD HL,d16": {
+			code: []byte{0x21, 0x41, 0x42},
+			pre: cpuData{
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				H:  0x42,
+				L:  0x41,
+				PC: 0x8003,
+			},
+			wantbus: testBus{},
+		},
 		"LDI (HL+), A": {
 			code: []byte{0x22},
 			pre: cpuData{
@@ -696,6 +1065,51 @@ func TestCpuOps0x20_0x2F(t *testing.T) {
 				PC: 0x8001,
 			},
 			wantbus: testBus{0x0002: 0x42},
+		},
+		"INC HL": {
+			code: []byte{0x23},
+			pre: cpuData{
+				H:  0x41,
+				L:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				H:  0x41,
+				L:  0x43,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"INC HL zero": {
+			code: []byte{0x23},
+			pre: cpuData{
+				H:  0xFF,
+				L:  0xFF,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				H:  0x00,
+				L:  0x00,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"INC HL half carry": {
+			code: []byte{0x23},
+			pre: cpuData{
+				H:  0x00,
+				L:  0xFF,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				H:  0x01,
+				L:  0x00,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
 		},
 		"INC H": {
 			code: []byte{0x24},
@@ -793,6 +1207,7 @@ func TestCpuOps0x20_0x2F(t *testing.T) {
 			},
 			wantbus: testBus{},
 		},
+		// TODO: DAA
 		"JR Z, e": {
 			code: []byte{0x28, 0x02},
 			pre: cpuData{
@@ -830,6 +1245,53 @@ func TestCpuOps0x20_0x2F(t *testing.T) {
 			},
 			wantbus: testBus{},
 		},
+		"ADD HL,HL": {
+			code: []byte{0x29},
+			pre: cpuData{
+				H:  0x02,
+				L:  0xAA,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				H:  0x05,
+				L:  0x54,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"ADD HL,HL carry": {
+			code: []byte{0x29},
+			pre: cpuData{
+				H:  0x80,
+				L:  0x01,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				H:  0x00,
+				L:  0x02,
+				F:  fc,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"ADD HL,HL half carry": {
+			code: []byte{0x29},
+			pre: cpuData{
+				H:  0x0F,
+				L:  0xFF,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				H:  0x1F,
+				L:  0xFE,
+				F:  fh,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
 		"LD A, (HL+)": {
 			code: []byte{0x2A},
 			pre: cpuData{
@@ -846,6 +1308,51 @@ func TestCpuOps0x20_0x2F(t *testing.T) {
 				PC: 0x8001,
 			},
 			wantbus: testBus{0x0002: 0x42},
+		},
+		"DEC HL": {
+			code: []byte{0x2B},
+			pre: cpuData{
+				H:  0x00,
+				L:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				H:  0x00,
+				L:  0x41,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"DEC HL zero": {
+			code: []byte{0x2B},
+			pre: cpuData{
+				H:  0x00,
+				L:  0x01,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				H:  0x00,
+				L:  0x00,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"DEC HL half carry": {
+			code: []byte{0x2B},
+			pre: cpuData{
+				H:  0x01,
+				L:  0x00,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				H:  0x00,
+				L:  0xFF,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
 		},
 		"INC L": {
 			code: []byte{0x2C},
@@ -1001,6 +1508,18 @@ func TestCpuOps0x30_0x3F(t *testing.T) {
 			},
 			wantbus: testBus{},
 		},
+		"LD SP,d16": {
+			code: []byte{0x31, 0x41, 0x42},
+			pre: cpuData{
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				SP: 0x4241,
+				PC: 0x8003,
+			},
+			wantbus: testBus{},
+		},
 		"LDD (HL-), A": {
 			code: []byte{0x32},
 			pre: cpuData{
@@ -1017,6 +1536,45 @@ func TestCpuOps0x30_0x3F(t *testing.T) {
 				PC: 0x8001,
 			},
 			wantbus: testBus{0x0002: 0x42},
+		},
+		"INC SP": {
+			code: []byte{0x33},
+			pre: cpuData{
+				SP: 0x4142,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				SP: 0x4143,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"INC SP zero": {
+			code: []byte{0x33},
+			pre: cpuData{
+				SP: 0xFFFF,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				SP: 0x0000,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"INC SP half carry": {
+			code: []byte{0x33},
+			pre: cpuData{
+				SP: 0x00FF,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				SP: 0x0100,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
 		},
 		"INC (HL)": {
 			code: []byte{0x34},
@@ -1190,6 +1748,59 @@ func TestCpuOps0x30_0x3F(t *testing.T) {
 			},
 			wantbus: testBus{},
 		},
+		"ADD HL,SP": {
+			code: []byte{0x39},
+			pre: cpuData{
+				SP: 0x0FFC,
+				H:  0x00,
+				L:  0x03,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				SP: 0x0FFC,
+				H:  0x0F,
+				L:  0xFF,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"ADD HL,SP carry": {
+			code: []byte{0x39},
+			pre: cpuData{
+				SP: 0xB7FD,
+				H:  0x50,
+				L:  0x02,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				SP: 0xB7FD,
+				H:  0x07,
+				L:  0xFF,
+				F:  fc,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"ADD HL,SP half carry": {
+			code: []byte{0x39},
+			pre: cpuData{
+				SP: 0x0605,
+				H:  0x8A,
+				L:  0x23,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				SP: 0x0605,
+				H:  0x90,
+				L:  0x28,
+				F:  fh,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
 		"LD A, (HL-)": {
 			code: []byte{0x3A},
 			pre: cpuData{
@@ -1206,6 +1817,45 @@ func TestCpuOps0x30_0x3F(t *testing.T) {
 				PC: 0x8001,
 			},
 			wantbus: testBus{0x0002: 0x42},
+		},
+		"DEC SP": {
+			code: []byte{0x3B},
+			pre: cpuData{
+				SP: 0x0042,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				SP: 0x0041,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"DEC SP zero": {
+			code: []byte{0x3B},
+			pre: cpuData{
+				SP: 0x0001,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				SP: 0x0000,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"DEC SP half carry": {
+			code: []byte{0x3B},
+			pre: cpuData{
+				SP: 0x0100,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				SP: 0x00FF,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
 		},
 		"INC A": {
 			code: []byte{0x3C},
@@ -1441,19 +2091,6 @@ func TestCpuOps0x40_0x4F(t *testing.T) {
 			},
 			wantbus: testBus{0x0002: 0x42},
 		},
-		"LD C, C": {
-			code: []byte{0x49},
-			pre: cpuData{
-				C:  0x42,
-				PC: 0x8000,
-			},
-			bus: testBus{},
-			want: cpuData{
-				C:  0x42,
-				PC: 0x8001,
-			},
-			wantbus: testBus{},
-		},
 		"LD B, A": {
 			code: []byte{0x47},
 			pre: cpuData{
@@ -1477,6 +2114,19 @@ func TestCpuOps0x40_0x4F(t *testing.T) {
 			}, bus: testBus{},
 			want: cpuData{
 				B:  0x42,
+				C:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"LD C, C": {
+			code: []byte{0x49},
+			pre: cpuData{
+				C:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
 				C:  0x42,
 				PC: 0x8001,
 			},

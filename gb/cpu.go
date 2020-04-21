@@ -280,11 +280,11 @@ func (c *cpu) add_rr_rr(opcode uint8, b bus) {
 		v = uint16(c.H)<<8 | uint16(c.L)
 	}
 
-	hl += v
-
 	c.F.set(fn, false)
 	c.F.set(fh, hl&0xFFF+v&0xFFF > 0xFFF)
 	c.F.set(fc, uint32(hl)+uint32(v) > 0xFFFF)
+
+	hl += v
 
 	c.L = uint8(hl & 0xFF)
 	c.H = uint8(hl >> 8)
@@ -297,11 +297,11 @@ func (c *cpu) add_rr_sp(opcode uint8, b bus) {
 	hl := uint16(c.H)<<8 | uint16(c.L)
 	v := c.SP
 
-	hl += v
-
 	c.F.set(fn, false)
 	c.F.set(fh, hl&0xFFF+v&0xFFF > 0xFFF)
 	c.F.set(fc, uint32(hl)+uint32(v) > 0xFFFF)
+
+	hl += v
 
 	c.L = uint8(hl & 0xFF)
 	c.H = uint8(hl >> 8)
@@ -1341,9 +1341,9 @@ func (c *cpu) ld_rr_d16(opcode uint8, b bus) {
 		rrlo = &c.L
 	}
 
-	*rrhi = b.read(c.PC)
-	c.PC++
 	*rrlo = b.read(c.PC)
+	c.PC++
+	*rrhi = b.read(c.PC)
 	c.PC++
 }
 
