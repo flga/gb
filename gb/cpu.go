@@ -25,18 +25,30 @@ const (
 
 func (f cpuFlags) String() string {
 	buf := make([]rune, 0, 4)
-	if f&fc > 0 {
-		buf = append(buf, 'C')
-	}
-	if f&fh > 0 {
-		buf = append(buf, 'H')
-	}
-	if f&fn > 0 {
-		buf = append(buf, 'N')
-	}
 	if f&fz > 0 {
 		buf = append(buf, 'Z')
+	} else {
+		buf = append(buf, '-')
 	}
+
+	if f&fn > 0 {
+		buf = append(buf, 'N')
+	} else {
+		buf = append(buf, '-')
+	}
+
+	if f&fh > 0 {
+		buf = append(buf, 'H')
+	} else {
+		buf = append(buf, '-')
+	}
+
+	if f&fc > 0 {
+		buf = append(buf, 'C')
+	} else {
+		buf = append(buf, '-')
+	}
+
 	return string(buf)
 }
 
@@ -1579,7 +1591,7 @@ func (c *cpu) rla(opcode uint8, b bus) {
 // 0x07 RLCA    1 4 0 0 0 0 C
 func (c *cpu) rlca(opcode uint8, b bus) {
 	carryOut := c.A & 0x80
-	c.A = c.A << 1
+	c.A = c.A<<1 | carryOut>>7
 
 	c.F.set(fz, false)
 	c.F.set(fn, false)
@@ -1606,7 +1618,7 @@ func (c *cpu) rra(opcode uint8, b bus) {
 // 0x0F RRCA    1 4 0 0 0 0 C
 func (c *cpu) rrca(opcode uint8, b bus) {
 	carryOut := c.A & 0x1
-	c.A = c.A >> 1
+	c.A = c.A>>1 | carryOut<<7
 
 	c.F.set(fz, false)
 	c.F.set(fn, false)
