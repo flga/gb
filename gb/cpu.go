@@ -875,7 +875,13 @@ func (c *cpu) jr_r_r8(opcode uint8, b bus) {
 func (c *cpu) ld__r(opcode uint8, b bus) {
 	addr := uint16(c.H)<<8 | uint16(c.L)
 	b.write(addr, c.A)
-	addr++
+
+	switch opcode {
+	case 0x22:
+		addr++
+	case 0x32:
+		addr--
+	}
 	c.H = uint8(addr >> 8)
 	c.L = uint8(addr & 0xFF)
 }
