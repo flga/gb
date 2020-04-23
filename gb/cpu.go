@@ -146,23 +146,23 @@ func (c *cpu) addc8(a, b uint8) uint8 {
 		carry = 1
 	}
 
-	a += b + carry
-
-	c.F.set(fz, a == 0)
+	c.F.set(fz, a+b+carry == 0)
 	c.F.set(fn, false)
 	c.F.set(fh, a&0xF+b&0xF+carry > 0xF)
 	c.F.set(fc, uint16(a)+uint16(b)+uint16(carry) > 0xFF)
+
+	a += b + carry
 
 	return a
 }
 
 func (c *cpu) add8(a, b uint8) uint8 {
-	a += b
-
-	c.F.set(fz, a == 0)
+	c.F.set(fz, a+b == 0)
 	c.F.set(fn, false)
 	c.F.set(fh, a&0xF+b&0xF > 0xF)
 	c.F.set(fc, uint16(a)+uint16(b) > 0xFF)
+
+	a += b
 
 	return a
 }

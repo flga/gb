@@ -2932,6 +2932,519 @@ func TestCpuOps0x70_0x7F(t *testing.T) {
 	}
 }
 
+func TestCpuOps0x80_0x8F(t *testing.T) {
+	tests := map[string]cpuSingleTest{
+		"ADD A,B": {
+			code: []byte{0x80},
+			pre: cpuData{
+				A:  0x01,
+				B:  0x41,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				A:  0x42,
+				B:  0x41,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"ADD A,B zero carry": {
+			code: []byte{0x80},
+			pre: cpuData{
+				A:  0xFF,
+				B:  0x01,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				A:  0x00,
+				B:  0x01,
+				F:  fz | fh | fc,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"ADD A,B half carry": {
+			code: []byte{0x80},
+			pre: cpuData{
+				A:  0x0F,
+				B:  0x01,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				A:  0x10,
+				B:  0x01,
+				F:  fh,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"ADD A,B carry in": {
+			code: []byte{0x80},
+			pre: cpuData{
+				A:  0x01,
+				B:  0x41,
+				F:  fc,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				A:  0x42,
+				B:  0x41,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"ADD A,C": {
+			code: []byte{0x81},
+			pre: cpuData{
+				A:  0x01,
+				C:  0x41,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				A:  0x42,
+				C:  0x41,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"ADD A,C zero carry": {
+			code: []byte{0x81},
+			pre: cpuData{
+				A:  0xFF,
+				C:  0x01,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				A:  0x00,
+				C:  0x01,
+				F:  fz | fh | fc,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"ADD A,C half carry": {
+			code: []byte{0x81},
+			pre: cpuData{
+				A:  0x0F,
+				C:  0x01,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				A:  0x10,
+				C:  0x01,
+				F:  fh,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"ADD A,C carry in": {
+			code: []byte{0x81},
+			pre: cpuData{
+				A:  0x01,
+				C:  0x41,
+				F:  fc,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				A:  0x42,
+				C:  0x41,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"ADD A,D": {
+			code: []byte{0x82},
+			pre: cpuData{
+				A:  0x01,
+				D:  0x41,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				A:  0x42,
+				D:  0x41,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"ADD A,D zero carry": {
+			code: []byte{0x82},
+			pre: cpuData{
+				A:  0xFF,
+				D:  0x01,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				A:  0x00,
+				D:  0x01,
+				F:  fz | fh | fc,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"ADD A,D half carry": {
+			code: []byte{0x82},
+			pre: cpuData{
+				A:  0x0F,
+				D:  0x01,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				A:  0x10,
+				D:  0x01,
+				F:  fh,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"ADD A,D carry in": {
+			code: []byte{0x82},
+			pre: cpuData{
+				A:  0x01,
+				D:  0x41,
+				F:  fc,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				A:  0x42,
+				D:  0x41,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"ADD A,E": {
+			code: []byte{0x83},
+			pre: cpuData{
+				A:  0x01,
+				E:  0x41,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				A:  0x42,
+				E:  0x41,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"ADD A,E zero carry": {
+			code: []byte{0x83},
+			pre: cpuData{
+				A:  0xFF,
+				E:  0x01,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				A:  0x00,
+				E:  0x01,
+				F:  fz | fh | fc,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"ADD A,E half carry": {
+			code: []byte{0x83},
+			pre: cpuData{
+				A:  0x0F,
+				E:  0x01,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				A:  0x10,
+				E:  0x01,
+				F:  fh,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"ADD A,E carry in": {
+			code: []byte{0x83},
+			pre: cpuData{
+				A:  0x01,
+				E:  0x41,
+				F:  fc,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				A:  0x42,
+				E:  0x41,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"ADD A,H": {
+			code: []byte{0x84},
+			pre: cpuData{
+				A:  0x01,
+				H:  0x41,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				A:  0x42,
+				H:  0x41,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"ADD A,H zero carry": {
+			code: []byte{0x84},
+			pre: cpuData{
+				A:  0xFF,
+				H:  0x01,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				A:  0x00,
+				H:  0x01,
+				F:  fz | fh | fc,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"ADD A,H half carry": {
+			code: []byte{0x84},
+			pre: cpuData{
+				A:  0x0F,
+				H:  0x01,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				A:  0x10,
+				H:  0x01,
+				F:  fh,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"ADD A,H carry in": {
+			code: []byte{0x84},
+			pre: cpuData{
+				A:  0x01,
+				H:  0x41,
+				F:  fc,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				A:  0x42,
+				H:  0x41,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"ADD A,L": {
+			code: []byte{0x85},
+			pre: cpuData{
+				A:  0x01,
+				L:  0x41,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				A:  0x42,
+				L:  0x41,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"ADD A,L zero carry": {
+			code: []byte{0x85},
+			pre: cpuData{
+				A:  0xFF,
+				L:  0x01,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				A:  0x00,
+				L:  0x01,
+				F:  fz | fh | fc,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"ADD A,L half carry": {
+			code: []byte{0x85},
+			pre: cpuData{
+				A:  0x0F,
+				L:  0x01,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				A:  0x10,
+				L:  0x01,
+				F:  fh,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"ADD A,L carry in": {
+			code: []byte{0x85},
+			pre: cpuData{
+				A:  0x01,
+				L:  0x41,
+				F:  fc,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				A:  0x42,
+				L:  0x41,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"ADD A,(HL)": {
+			code: []byte{0x86},
+			pre: cpuData{
+				A:  0x01,
+				H:  0x10,
+				L:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{0x1042: 0x41},
+			want: cpuData{
+				A:  0x42,
+				H:  0x10,
+				L:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{0x1042: 0x41},
+		},
+		"ADD A,(HL) zero carry": {
+			code: []byte{0x86},
+			pre: cpuData{
+				A:  0xFF,
+				H:  0x10,
+				L:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{0x1042: 0x01},
+			want: cpuData{
+				A:  0x00,
+				H:  0x10,
+				L:  0x42,
+				F:  fz | fh | fc,
+				PC: 0x8001,
+			},
+			wantbus: testBus{0x1042: 0x01},
+		},
+		"ADD A,(HL) half carry": {
+			code: []byte{0x86},
+			pre: cpuData{
+				A:  0x0F,
+				H:  0x10,
+				L:  0x42,
+				PC: 0x8000,
+			},
+			bus: testBus{0x1042: 0x01},
+			want: cpuData{
+				A:  0x10,
+				H:  0x10,
+				L:  0x42,
+				F:  fh,
+				PC: 0x8001,
+			},
+			wantbus: testBus{0x1042: 0x01},
+		},
+		"ADD A,(HL) carry in": {
+			code: []byte{0x86},
+			pre: cpuData{
+				A:  0x01,
+				H:  0x10,
+				L:  0x42,
+				F:  fc,
+				PC: 0x8000,
+			},
+			bus: testBus{0x1042: 0x41},
+			want: cpuData{
+				A:  0x42,
+				H:  0x10,
+				L:  0x42,
+				PC: 0x8001,
+			},
+			wantbus: testBus{0x1042: 0x41},
+		},
+		"ADD A,A": {
+			code: []byte{0x87},
+			pre: cpuData{
+				A:  0x01,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				A:  0x02,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"ADD A,A zero carry": {
+			code: []byte{0x87},
+			pre: cpuData{
+				A:  0x80,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				A:  0x00,
+				F:  fz | fc,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"ADD A,A half carry": {
+			code: []byte{0x87},
+			pre: cpuData{
+				A:  0x0F,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				A:  0x1E,
+				F:  fh,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+		"ADD A,A carry in": {
+			code: []byte{0x87},
+			pre: cpuData{
+				A:  0x01,
+				F:  fc,
+				PC: 0x8000,
+			},
+			bus: testBus{},
+			want: cpuData{
+				A:  0x02,
+				PC: 0x8001,
+			},
+			wantbus: testBus{},
+		},
+	}
+
+	for mnemonic, tt := range tests {
+		testInst(mnemonic, tt, t)
+	}
+}
+
 func testInst(mnemonic string, tt cpuSingleTest, t *testing.T) {
 	t.Run(mnemonic, func(t *testing.T) {
 		c := &cpu{
