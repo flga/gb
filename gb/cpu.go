@@ -60,6 +60,10 @@ func (f *cpuFlags) set(flag cpuFlags, v bool) {
 	}
 }
 
+func (f *cpuFlags) flip(flag cpuFlags) {
+	*f ^= flag
+}
+
 type cpuStatus uint8
 
 // just guessing for now
@@ -151,53 +155,29 @@ func (c *cpu) adc8(a, b uint8) uint8 {
 	c.F.set(fh, a&0xF+b&0xF+carry > 0xF)
 	c.F.set(fc, uint16(a)+uint16(b)+uint16(carry) > 0xFF)
 
-	a += b + carry
-
-	return a
+	return a + b + carry
 }
 
 func (c *cpu) sbc8(a, b uint8) uint8 {
-	var carry int16
-	if c.F&fc > 0 {
-		carry = 1
-	}
+	c.F.flip(fc)
 
-	sa := int16(a)
-	sb := int16(b)
+	v := c.adc8(a, b^0xFF)
 
-	c.F.set(fz, sa-sb-carry == 0)
 	c.F.set(fn, true)
-	c.F.set(fh, sa&0xF-sb&0xF-carry < 0)
-	c.F.set(fc, sa-sb-carry < 0)
+	c.F.flip(fh)
+	c.F.flip(fc)
 
-	a = a - b - uint8(carry)
-
-	return a
+	return v
 }
 
 func (c *cpu) add8(a, b uint8) uint8 {
-	c.F.set(fz, a+b == 0)
-	c.F.set(fn, false)
-	c.F.set(fh, a&0xF+b&0xF > 0xF)
-	c.F.set(fc, uint16(a)+uint16(b) > 0xFF)
-
-	a += b
-
-	return a
+	c.F.set(fc, false)
+	return c.adc8(a, b)
 }
 
 func (c *cpu) sub8(a, b uint8) uint8 {
-	sa := int16(a)
-	sb := int16(b)
-
-	c.F.set(fz, sa-sb == 0)
-	c.F.set(fn, true)
-	c.F.set(fh, sa&0xF-sb&0xF < 0)
-	c.F.set(fc, sa-sb < 0)
-
-	a -= b
-
-	return a
+	c.F.set(fc, false)
+	return c.sbc8(a, b)
 }
 
 // 0xCE ADC A,d8        2 8 0 Z 0 H C
