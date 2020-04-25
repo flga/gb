@@ -2559,6 +2559,166 @@ func TestCpuOps0x90_0x9F(t *testing.T) {
 	}
 }
 
+func TestCpuOps0xA0_0xAF(t *testing.T) {
+	tests := map[string]cpuSingleTest{
+		"AND B 00": {code: []byte{0xA0}, pre: cpuData{A: 0x00, B: 0x00, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x00, B: 0x00, F: H | Z, PC: 0x8001}, wantbus: testBus{}},
+		"AND B 10": {code: []byte{0xA0}, pre: cpuData{A: 0x01, B: 0x00, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x00, B: 0x00, F: H | Z, PC: 0x8001}, wantbus: testBus{}},
+		"AND B 01": {code: []byte{0xA0}, pre: cpuData{A: 0x00, B: 0x01, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x00, B: 0x01, F: H | Z, PC: 0x8001}, wantbus: testBus{}},
+		"AND B 11": {code: []byte{0xA0}, pre: cpuData{A: 0x01, B: 0x01, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x01, B: 0x01, F: H, PC: 0x8001}, wantbus: testBus{}},
+
+		"AND C 00": {code: []byte{0xA1}, pre: cpuData{A: 0x00, C: 0x00, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x00, C: 0x00, F: H | Z, PC: 0x8001}, wantbus: testBus{}},
+		"AND C 10": {code: []byte{0xA1}, pre: cpuData{A: 0x01, C: 0x00, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x00, C: 0x00, F: H | Z, PC: 0x8001}, wantbus: testBus{}},
+		"AND C 01": {code: []byte{0xA1}, pre: cpuData{A: 0x00, C: 0x01, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x00, C: 0x01, F: H | Z, PC: 0x8001}, wantbus: testBus{}},
+		"AND C 11": {code: []byte{0xA1}, pre: cpuData{A: 0x01, C: 0x01, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x01, C: 0x01, F: H, PC: 0x8001}, wantbus: testBus{}},
+
+		"AND D 00": {code: []byte{0xA2}, pre: cpuData{A: 0x00, D: 0x00, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x00, D: 0x00, F: H | Z, PC: 0x8001}, wantbus: testBus{}},
+		"AND D 10": {code: []byte{0xA2}, pre: cpuData{A: 0x01, D: 0x00, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x00, D: 0x00, F: H | Z, PC: 0x8001}, wantbus: testBus{}},
+		"AND D 01": {code: []byte{0xA2}, pre: cpuData{A: 0x00, D: 0x01, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x00, D: 0x01, F: H | Z, PC: 0x8001}, wantbus: testBus{}},
+		"AND D 11": {code: []byte{0xA2}, pre: cpuData{A: 0x01, D: 0x01, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x01, D: 0x01, F: H, PC: 0x8001}, wantbus: testBus{}},
+
+		"AND E 00": {code: []byte{0xA3}, pre: cpuData{A: 0x00, E: 0x00, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x00, E: 0x00, F: H | Z, PC: 0x8001}, wantbus: testBus{}},
+		"AND E 10": {code: []byte{0xA3}, pre: cpuData{A: 0x01, E: 0x00, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x00, E: 0x00, F: H | Z, PC: 0x8001}, wantbus: testBus{}},
+		"AND E 01": {code: []byte{0xA3}, pre: cpuData{A: 0x00, E: 0x01, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x00, E: 0x01, F: H | Z, PC: 0x8001}, wantbus: testBus{}},
+		"AND E 11": {code: []byte{0xA3}, pre: cpuData{A: 0x01, E: 0x01, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x01, E: 0x01, F: H, PC: 0x8001}, wantbus: testBus{}},
+
+		"AND H 00": {code: []byte{0xA4}, pre: cpuData{A: 0x00, H: 0x00, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x00, H: 0x00, F: H | Z, PC: 0x8001}, wantbus: testBus{}},
+		"AND H 10": {code: []byte{0xA4}, pre: cpuData{A: 0x01, H: 0x00, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x00, H: 0x00, F: H | Z, PC: 0x8001}, wantbus: testBus{}},
+		"AND H 01": {code: []byte{0xA4}, pre: cpuData{A: 0x00, H: 0x01, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x00, H: 0x01, F: H | Z, PC: 0x8001}, wantbus: testBus{}},
+		"AND H 11": {code: []byte{0xA4}, pre: cpuData{A: 0x01, H: 0x01, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x01, H: 0x01, F: H, PC: 0x8001}, wantbus: testBus{}},
+
+		"AND L 00": {code: []byte{0xA5}, pre: cpuData{A: 0x00, L: 0x00, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x00, L: 0x00, F: H | Z, PC: 0x8001}, wantbus: testBus{}},
+		"AND L 10": {code: []byte{0xA5}, pre: cpuData{A: 0x01, L: 0x00, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x00, L: 0x00, F: H | Z, PC: 0x8001}, wantbus: testBus{}},
+		"AND L 01": {code: []byte{0xA5}, pre: cpuData{A: 0x00, L: 0x01, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x00, L: 0x01, F: H | Z, PC: 0x8001}, wantbus: testBus{}},
+		"AND L 11": {code: []byte{0xA5}, pre: cpuData{A: 0x01, L: 0x01, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x01, L: 0x01, F: H, PC: 0x8001}, wantbus: testBus{}},
+
+		"AND (HL) 00": {code: []byte{0xA6}, pre: cpuData{A: 0x00, H: 0x40, L: 0x01, PC: 0x8000}, bus: testBus{0x4001: 0x00}, want: cpuData{A: 0x00, H: 0x40, L: 0x01, F: H | Z, PC: 0x8001}, wantbus: testBus{0x4001: 0x00}},
+		"AND (HL) 10": {code: []byte{0xA6}, pre: cpuData{A: 0x01, H: 0x40, L: 0x01, PC: 0x8000}, bus: testBus{0x4001: 0x00}, want: cpuData{A: 0x00, H: 0x40, L: 0x01, F: H | Z, PC: 0x8001}, wantbus: testBus{0x4001: 0x00}},
+		"AND (HL) 01": {code: []byte{0xA6}, pre: cpuData{A: 0x00, H: 0x40, L: 0x01, PC: 0x8000}, bus: testBus{0x4001: 0x01}, want: cpuData{A: 0x00, H: 0x40, L: 0x01, F: H | Z, PC: 0x8001}, wantbus: testBus{0x4001: 0x01}},
+		"AND (HL) 11": {code: []byte{0xA6}, pre: cpuData{A: 0x01, H: 0x40, L: 0x01, PC: 0x8000}, bus: testBus{0x4001: 0x01}, want: cpuData{A: 0x01, H: 0x40, L: 0x01, F: H, PC: 0x8001}, wantbus: testBus{0x4001: 0x01}},
+
+		"AND A":      {code: []byte{0xA7}, pre: cpuData{A: 0x01, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x01, F: H, PC: 0x8001}, wantbus: testBus{}},
+		"AND A zero": {code: []byte{0xA7}, pre: cpuData{A: 0x00, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x00, F: H | Z, PC: 0x8001}, wantbus: testBus{}},
+
+		"XOR B 00": {code: []byte{0xA8}, pre: cpuData{A: 0x00, B: 0x00, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x00, B: 0x00, F: Z, PC: 0x8001}, wantbus: testBus{}},
+		"XOR B 10": {code: []byte{0xA8}, pre: cpuData{A: 0x01, B: 0x00, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x01, B: 0x00, PC: 0x8001}, wantbus: testBus{}},
+		"XOR B 01": {code: []byte{0xA8}, pre: cpuData{A: 0x00, B: 0x01, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x01, B: 0x01, PC: 0x8001}, wantbus: testBus{}},
+		"XOR B 11": {code: []byte{0xA8}, pre: cpuData{A: 0x01, B: 0x01, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x00, B: 0x01, F: Z, PC: 0x8001}, wantbus: testBus{}},
+
+		"XOR C 00": {code: []byte{0xA9}, pre: cpuData{A: 0x00, C: 0x00, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x00, C: 0x00, F: Z, PC: 0x8001}, wantbus: testBus{}},
+		"XOR C 10": {code: []byte{0xA9}, pre: cpuData{A: 0x01, C: 0x00, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x01, C: 0x00, PC: 0x8001}, wantbus: testBus{}},
+		"XOR C 01": {code: []byte{0xA9}, pre: cpuData{A: 0x00, C: 0x01, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x01, C: 0x01, PC: 0x8001}, wantbus: testBus{}},
+		"XOR C 11": {code: []byte{0xA9}, pre: cpuData{A: 0x01, C: 0x01, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x00, C: 0x01, F: Z, PC: 0x8001}, wantbus: testBus{}},
+
+		"XOR D 00": {code: []byte{0xAA}, pre: cpuData{A: 0x00, D: 0x00, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x00, D: 0x00, F: Z, PC: 0x8001}, wantbus: testBus{}},
+		"XOR D 10": {code: []byte{0xAA}, pre: cpuData{A: 0x01, D: 0x00, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x01, D: 0x00, PC: 0x8001}, wantbus: testBus{}},
+		"XOR D 01": {code: []byte{0xAA}, pre: cpuData{A: 0x00, D: 0x01, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x01, D: 0x01, PC: 0x8001}, wantbus: testBus{}},
+		"XOR D 11": {code: []byte{0xAA}, pre: cpuData{A: 0x01, D: 0x01, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x00, D: 0x01, F: Z, PC: 0x8001}, wantbus: testBus{}},
+
+		"XOR E 00": {code: []byte{0xAB}, pre: cpuData{A: 0x00, E: 0x00, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x00, E: 0x00, F: Z, PC: 0x8001}, wantbus: testBus{}},
+		"XOR E 10": {code: []byte{0xAB}, pre: cpuData{A: 0x01, E: 0x00, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x01, E: 0x00, PC: 0x8001}, wantbus: testBus{}},
+		"XOR E 01": {code: []byte{0xAB}, pre: cpuData{A: 0x00, E: 0x01, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x01, E: 0x01, PC: 0x8001}, wantbus: testBus{}},
+		"XOR E 11": {code: []byte{0xAB}, pre: cpuData{A: 0x01, E: 0x01, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x00, E: 0x01, F: Z, PC: 0x8001}, wantbus: testBus{}},
+
+		"XOR H 00": {code: []byte{0xAC}, pre: cpuData{A: 0x00, H: 0x00, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x00, H: 0x00, F: Z, PC: 0x8001}, wantbus: testBus{}},
+		"XOR H 10": {code: []byte{0xAC}, pre: cpuData{A: 0x01, H: 0x00, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x01, H: 0x00, PC: 0x8001}, wantbus: testBus{}},
+		"XOR H 01": {code: []byte{0xAC}, pre: cpuData{A: 0x00, H: 0x01, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x01, H: 0x01, PC: 0x8001}, wantbus: testBus{}},
+		"XOR H 11": {code: []byte{0xAC}, pre: cpuData{A: 0x01, H: 0x01, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x00, H: 0x01, F: Z, PC: 0x8001}, wantbus: testBus{}},
+
+		"XOR L 00": {code: []byte{0xAD}, pre: cpuData{A: 0x00, L: 0x00, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x00, L: 0x00, F: Z, PC: 0x8001}, wantbus: testBus{}},
+		"XOR L 10": {code: []byte{0xAD}, pre: cpuData{A: 0x01, L: 0x00, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x01, L: 0x00, PC: 0x8001}, wantbus: testBus{}},
+		"XOR L 01": {code: []byte{0xAD}, pre: cpuData{A: 0x00, L: 0x01, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x01, L: 0x01, PC: 0x8001}, wantbus: testBus{}},
+		"XOR L 11": {code: []byte{0xAD}, pre: cpuData{A: 0x01, L: 0x01, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x00, L: 0x01, F: Z, PC: 0x8001}, wantbus: testBus{}},
+
+		"XOR (HL) 00": {code: []byte{0xAE}, pre: cpuData{A: 0x00, H: 0x40, L: 0x01, PC: 0x8000}, bus: testBus{0x4001: 0x00}, want: cpuData{A: 0x00, H: 0x40, L: 0x01, F: Z, PC: 0x8001}, wantbus: testBus{0x4001: 0x00}},
+		"XOR (HL) 10": {code: []byte{0xAE}, pre: cpuData{A: 0x01, H: 0x40, L: 0x01, PC: 0x8000}, bus: testBus{0x4001: 0x00}, want: cpuData{A: 0x01, H: 0x40, L: 0x01, PC: 0x8001}, wantbus: testBus{0x4001: 0x00}},
+		"XOR (HL) 01": {code: []byte{0xAE}, pre: cpuData{A: 0x00, H: 0x40, L: 0x01, PC: 0x8000}, bus: testBus{0x4001: 0x01}, want: cpuData{A: 0x01, H: 0x40, L: 0x01, PC: 0x8001}, wantbus: testBus{0x4001: 0x01}},
+		"XOR (HL) 11": {code: []byte{0xAE}, pre: cpuData{A: 0x01, H: 0x40, L: 0x01, PC: 0x8000}, bus: testBus{0x4001: 0x01}, want: cpuData{A: 0x00, H: 0x40, L: 0x01, F: Z, PC: 0x8001}, wantbus: testBus{0x4001: 0x01}},
+
+		"XOR A":      {code: []byte{0xAF}, pre: cpuData{A: 0x01, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x00, F: Z, PC: 0x8001}, wantbus: testBus{}},
+		"XOR A zero": {code: []byte{0xAF}, pre: cpuData{A: 0x00, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x00, F: Z, PC: 0x8001}, wantbus: testBus{}},
+	}
+
+	for mnemonic, tt := range tests {
+		testInst(mnemonic, tt, t)
+	}
+}
+
+func TestCpuOps0xB0_0xBF(t *testing.T) {
+	tests := map[string]cpuSingleTest{
+		"OR B 00": {code: []byte{0xB0}, pre: cpuData{A: 0x00, B: 0x00, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x00, B: 0x00, F: Z, PC: 0x8001}, wantbus: testBus{}},
+		"OR B 10": {code: []byte{0xB0}, pre: cpuData{A: 0x01, B: 0x00, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x01, B: 0x00, PC: 0x8001}, wantbus: testBus{}},
+		"OR B 01": {code: []byte{0xB0}, pre: cpuData{A: 0x00, B: 0x01, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x01, B: 0x01, PC: 0x8001}, wantbus: testBus{}},
+		"OR B 11": {code: []byte{0xB0}, pre: cpuData{A: 0x01, B: 0x01, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x01, B: 0x01, PC: 0x8001}, wantbus: testBus{}},
+
+		"OR C 00": {code: []byte{0xB1}, pre: cpuData{A: 0x00, C: 0x00, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x00, C: 0x00, F: Z, PC: 0x8001}, wantbus: testBus{}},
+		"OR C 10": {code: []byte{0xB1}, pre: cpuData{A: 0x01, C: 0x00, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x01, C: 0x00, PC: 0x8001}, wantbus: testBus{}},
+		"OR C 01": {code: []byte{0xB1}, pre: cpuData{A: 0x00, C: 0x01, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x01, C: 0x01, PC: 0x8001}, wantbus: testBus{}},
+		"OR C 11": {code: []byte{0xB1}, pre: cpuData{A: 0x01, C: 0x01, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x01, C: 0x01, PC: 0x8001}, wantbus: testBus{}},
+
+		"OR D 00": {code: []byte{0xB2}, pre: cpuData{A: 0x00, D: 0x00, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x00, D: 0x00, F: Z, PC: 0x8001}, wantbus: testBus{}},
+		"OR D 10": {code: []byte{0xB2}, pre: cpuData{A: 0x01, D: 0x00, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x01, D: 0x00, PC: 0x8001}, wantbus: testBus{}},
+		"OR D 01": {code: []byte{0xB2}, pre: cpuData{A: 0x00, D: 0x01, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x01, D: 0x01, PC: 0x8001}, wantbus: testBus{}},
+		"OR D 11": {code: []byte{0xB2}, pre: cpuData{A: 0x01, D: 0x01, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x01, D: 0x01, PC: 0x8001}, wantbus: testBus{}},
+
+		"OR E 00": {code: []byte{0xB3}, pre: cpuData{A: 0x00, E: 0x00, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x00, E: 0x00, F: Z, PC: 0x8001}, wantbus: testBus{}},
+		"OR E 10": {code: []byte{0xB3}, pre: cpuData{A: 0x01, E: 0x00, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x01, E: 0x00, PC: 0x8001}, wantbus: testBus{}},
+		"OR E 01": {code: []byte{0xB3}, pre: cpuData{A: 0x00, E: 0x01, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x01, E: 0x01, PC: 0x8001}, wantbus: testBus{}},
+		"OR E 11": {code: []byte{0xB3}, pre: cpuData{A: 0x01, E: 0x01, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x01, E: 0x01, PC: 0x8001}, wantbus: testBus{}},
+
+		"OR H 00": {code: []byte{0xB4}, pre: cpuData{A: 0x00, H: 0x00, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x00, H: 0x00, F: Z, PC: 0x8001}, wantbus: testBus{}},
+		"OR H 10": {code: []byte{0xB4}, pre: cpuData{A: 0x01, H: 0x00, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x01, H: 0x00, PC: 0x8001}, wantbus: testBus{}},
+		"OR H 01": {code: []byte{0xB4}, pre: cpuData{A: 0x00, H: 0x01, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x01, H: 0x01, PC: 0x8001}, wantbus: testBus{}},
+		"OR H 11": {code: []byte{0xB4}, pre: cpuData{A: 0x01, H: 0x01, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x01, H: 0x01, PC: 0x8001}, wantbus: testBus{}},
+
+		"OR L 00": {code: []byte{0xB5}, pre: cpuData{A: 0x00, L: 0x00, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x00, L: 0x00, F: Z, PC: 0x8001}, wantbus: testBus{}},
+		"OR L 10": {code: []byte{0xB5}, pre: cpuData{A: 0x01, L: 0x00, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x01, L: 0x00, PC: 0x8001}, wantbus: testBus{}},
+		"OR L 01": {code: []byte{0xB5}, pre: cpuData{A: 0x00, L: 0x01, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x01, L: 0x01, PC: 0x8001}, wantbus: testBus{}},
+		"OR L 11": {code: []byte{0xB5}, pre: cpuData{A: 0x01, L: 0x01, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x01, L: 0x01, PC: 0x8001}, wantbus: testBus{}},
+
+		"OR (HL) 00": {code: []byte{0xB6}, pre: cpuData{A: 0x00, H: 0x40, L: 0x01, PC: 0x8000}, bus: testBus{0x4001: 0x00}, want: cpuData{A: 0x00, H: 0x40, L: 0x01, F: Z, PC: 0x8001}, wantbus: testBus{0x4001: 0x00}},
+		"OR (HL) 10": {code: []byte{0xB6}, pre: cpuData{A: 0x01, H: 0x40, L: 0x01, PC: 0x8000}, bus: testBus{0x4001: 0x00}, want: cpuData{A: 0x01, H: 0x40, L: 0x01, PC: 0x8001}, wantbus: testBus{0x4001: 0x00}},
+		"OR (HL) 01": {code: []byte{0xB6}, pre: cpuData{A: 0x00, H: 0x40, L: 0x01, PC: 0x8000}, bus: testBus{0x4001: 0x01}, want: cpuData{A: 0x01, H: 0x40, L: 0x01, PC: 0x8001}, wantbus: testBus{0x4001: 0x01}},
+		"OR (HL) 11": {code: []byte{0xB6}, pre: cpuData{A: 0x01, H: 0x40, L: 0x01, PC: 0x8000}, bus: testBus{0x4001: 0x01}, want: cpuData{A: 0x01, H: 0x40, L: 0x01, PC: 0x8001}, wantbus: testBus{0x4001: 0x01}},
+
+		"OR A":      {code: []byte{0xB7}, pre: cpuData{A: 0x01, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x01, PC: 0x8001}, wantbus: testBus{}},
+		"OR A zero": {code: []byte{0xB7}, pre: cpuData{A: 0x00, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x00, F: Z, PC: 0x8001}, wantbus: testBus{}},
+
+		"CP B lt": {code: []byte{0xB8}, pre: cpuData{A: 0x42, B: 0x41, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x42, B: 0x41, F: N | H, PC: 0x8001}, wantbus: testBus{}},
+		"CP B eq": {code: []byte{0xB8}, pre: cpuData{A: 0x42, B: 0x42, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x42, B: 0x42, F: N | Z, PC: 0x8001}, wantbus: testBus{}},
+		"CP B gt": {code: []byte{0xB8}, pre: cpuData{A: 0x42, B: 0x43, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x42, B: 0x43, F: N | CY, PC: 0x8001}, wantbus: testBus{}},
+
+		"CP C lt": {code: []byte{0xB9}, pre: cpuData{A: 0x42, C: 0x41, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x42, C: 0x41, F: N | H, PC: 0x8001}, wantbus: testBus{}},
+		"CP C eq": {code: []byte{0xB9}, pre: cpuData{A: 0x42, C: 0x42, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x42, C: 0x42, F: N | Z, PC: 0x8001}, wantbus: testBus{}},
+		"CP C gt": {code: []byte{0xB9}, pre: cpuData{A: 0x42, C: 0x43, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x42, C: 0x43, F: N | CY, PC: 0x8001}, wantbus: testBus{}},
+
+		"CP D lt": {code: []byte{0xBA}, pre: cpuData{A: 0x42, D: 0x41, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x42, D: 0x41, F: N | H, PC: 0x8001}, wantbus: testBus{}},
+		"CP D eq": {code: []byte{0xBA}, pre: cpuData{A: 0x42, D: 0x42, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x42, D: 0x42, F: N | Z, PC: 0x8001}, wantbus: testBus{}},
+		"CP D gt": {code: []byte{0xBA}, pre: cpuData{A: 0x42, D: 0x43, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x42, D: 0x43, F: N | CY, PC: 0x8001}, wantbus: testBus{}},
+
+		"CP E lt": {code: []byte{0xBB}, pre: cpuData{A: 0x42, E: 0x41, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x42, E: 0x41, F: N | H, PC: 0x8001}, wantbus: testBus{}},
+		"CP E eq": {code: []byte{0xBB}, pre: cpuData{A: 0x42, E: 0x42, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x42, E: 0x42, F: N | Z, PC: 0x8001}, wantbus: testBus{}},
+		"CP E gt": {code: []byte{0xBB}, pre: cpuData{A: 0x42, E: 0x43, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x42, E: 0x43, F: N | CY, PC: 0x8001}, wantbus: testBus{}},
+
+		"CP H lt": {code: []byte{0xBC}, pre: cpuData{A: 0x42, H: 0x41, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x42, H: 0x41, F: N | H, PC: 0x8001}, wantbus: testBus{}},
+		"CP H eq": {code: []byte{0xBC}, pre: cpuData{A: 0x42, H: 0x42, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x42, H: 0x42, F: N | Z, PC: 0x8001}, wantbus: testBus{}},
+		"CP H gt": {code: []byte{0xBC}, pre: cpuData{A: 0x42, H: 0x43, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x42, H: 0x43, F: N | CY, PC: 0x8001}, wantbus: testBus{}},
+
+		"CP L lt": {code: []byte{0xBD}, pre: cpuData{A: 0x42, L: 0x41, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x42, L: 0x41, F: N | H, PC: 0x8001}, wantbus: testBus{}},
+		"CP L eq": {code: []byte{0xBD}, pre: cpuData{A: 0x42, L: 0x42, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x42, L: 0x42, F: N | Z, PC: 0x8001}, wantbus: testBus{}},
+		"CP L gt": {code: []byte{0xBD}, pre: cpuData{A: 0x42, L: 0x43, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x42, L: 0x43, F: N | CY, PC: 0x8001}, wantbus: testBus{}},
+
+		"CP (HL) lt": {code: []byte{0xBE}, pre: cpuData{A: 0x42, H: 0x40, L: 0x01, PC: 0x8000}, bus: testBus{0x4001: 0x41}, want: cpuData{A: 0x42, H: 0x40, L: 0x01, F: N | H, PC: 0x8001}, wantbus: testBus{0x4001: 0x41}},
+		"CP (HL) eq": {code: []byte{0xBE}, pre: cpuData{A: 0x42, H: 0x40, L: 0x01, PC: 0x8000}, bus: testBus{0x4001: 0x42}, want: cpuData{A: 0x42, H: 0x40, L: 0x01, F: N | Z, PC: 0x8001}, wantbus: testBus{0x4001: 0x42}},
+		"CP (HL) gt": {code: []byte{0xBE}, pre: cpuData{A: 0x42, H: 0x40, L: 0x01, PC: 0x8000}, bus: testBus{0x4001: 0x43}, want: cpuData{A: 0x42, H: 0x40, L: 0x01, F: N | CY, PC: 0x8001}, wantbus: testBus{0x4001: 0x43}},
+
+		"CP A eq": {code: []byte{0xBF}, pre: cpuData{A: 0x42, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x42, F: N | Z, PC: 0x8001}, wantbus: testBus{}},
+	}
+
+	for mnemonic, tt := range tests {
+		testInst(mnemonic, tt, t)
+	}
+}
+
 func testInst(mnemonic string, tt cpuSingleTest, t *testing.T) {
 	t.Run(mnemonic, func(t *testing.T) {
 		c := &cpu{
