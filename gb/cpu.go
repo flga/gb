@@ -140,7 +140,7 @@ func (c *cpu) genTable() {
 	}
 }
 
-func (c *cpu) addc8(a, b uint8) uint8 {
+func (c *cpu) adc8(a, b uint8) uint8 {
 	var carry uint8
 	if c.F&fc > 0 {
 		carry = 1
@@ -156,6 +156,25 @@ func (c *cpu) addc8(a, b uint8) uint8 {
 	return a
 }
 
+func (c *cpu) sbc8(a, b uint8) uint8 {
+	var carry int16
+	if c.F&fc > 0 {
+		carry = 1
+	}
+
+	sa := int16(a)
+	sb := int16(b)
+
+	c.F.set(fz, sa-sb-carry == 0)
+	c.F.set(fn, true)
+	c.F.set(fh, sa&0xF-sb&0xF-carry < 0)
+	c.F.set(fc, sa-sb-carry < 0)
+
+	a = a - b - uint8(carry)
+
+	return a
+}
+
 func (c *cpu) add8(a, b uint8) uint8 {
 	c.F.set(fz, a+b == 0)
 	c.F.set(fn, false)
@@ -167,12 +186,26 @@ func (c *cpu) add8(a, b uint8) uint8 {
 	return a
 }
 
+func (c *cpu) sub8(a, b uint8) uint8 {
+	sa := int16(a)
+	sb := int16(b)
+
+	c.F.set(fz, sa-sb == 0)
+	c.F.set(fn, true)
+	c.F.set(fh, sa&0xF-sb&0xF < 0)
+	c.F.set(fc, sa-sb < 0)
+
+	a -= b
+
+	return a
+}
+
 // 0xCE ADC A,d8        2 8 0 Z 0 H C
 func (c *cpu) adc_r_d8(opcode uint8, b bus) {
 	v := b.read(c.PC)
 	c.PC++
 
-	c.A = c.addc8(c.A, v)
+	c.A = c.adc8(c.A, v)
 }
 
 // 0x8E ADC A,(HL)      1 8 0 Z 0 H C
@@ -182,7 +215,7 @@ func (c *cpu) adc_r_irr(opcode uint8, b bus) {
 	addr := hi<<8 | lo
 	v := b.read(addr)
 
-	c.A = c.addc8(c.A, v)
+	c.A = c.adc8(c.A, v)
 }
 
 // 0x88 ADC A,B 1 4 0 Z 0 H C
@@ -212,7 +245,7 @@ func (c *cpu) adc_r_r(opcode uint8, b bus) {
 		v = c.A
 	}
 
-	c.A = c.addc8(c.A, v)
+	c.A = c.adc8(c.A, v)
 }
 
 // 0xC6 ADD A,d8        2 8 0 Z 0 H C
@@ -1653,9 +1686,7 @@ func (c *cpu) sbc_r_d8(opcode uint8, b bus) {
 	v := b.read(c.PC)
 	c.PC++
 
-	v = v ^ 0xFF
-	c.addc8(c.A, v)
-	c.F.set(fn, true)
+	c.A = c.sbc8(c.A, v)
 }
 
 // 0x9E SBC A,(HL)      1 8 0 Z 1 H C
@@ -1665,9 +1696,7 @@ func (c *cpu) sbc_r_irr(opcode uint8, b bus) {
 	addr := hi<<8 | lo
 	v := b.read(addr)
 
-	v = v ^ 0xFF
-	c.addc8(c.A, v)
-	c.F.set(fn, true)
+	c.A = c.sbc8(c.A, v)
 }
 
 // 0x98 SBC A,B 1 4 0 Z 1 H C
@@ -1696,9 +1725,7 @@ func (c *cpu) sbc_r_r(opcode uint8, b bus) {
 		v = c.A
 	}
 
-	v = v ^ 0xFF
-	c.addc8(c.A, v)
-	c.F.set(fn, true)
+	c.A = c.sbc8(c.A, v)
 }
 
 // 0x37 SCF     1 4 0 - 0 0 1
@@ -1714,9 +1741,7 @@ func (c *cpu) sub_d8(opcode uint8, b bus) {
 	v := b.read(c.PC)
 	c.PC++
 
-	v = v ^ 0xFF + 1
-	c.add8(c.A, v)
-	c.F.set(fn, true)
+	c.A = c.sub8(c.A, v)
 }
 
 // 0x96 SUB (HL)        1 8 0 Z 1 H C
@@ -1726,9 +1751,7 @@ func (c *cpu) sub_irr(opcode uint8, b bus) {
 	addr := hi<<8 | lo
 	v := b.read(addr)
 
-	v = v ^ 0xFF + 1
-	c.add8(c.A, v)
-	c.F.set(fn, true)
+	c.A = c.sub8(c.A, v)
 }
 
 // 0x90 SUB B   1 4 0 Z 1 H C
@@ -1757,9 +1780,7 @@ func (c *cpu) sub_r(opcode uint8, b bus) {
 		v = c.A
 	}
 
-	v = v ^ 0xFF + 1
-	c.add8(c.A, v)
-	c.F.set(fn, true)
+	c.A = c.sub8(c.A, v)
 }
 
 // 0xEE XOR d8  2 8 0 Z 0 0 0
