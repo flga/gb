@@ -66,6 +66,8 @@ type cpu struct {
 	SP   uint16
 	PC   uint16
 
+	IME bool
+
 	table [256]op
 }
 
@@ -1489,14 +1491,14 @@ func (c *cpu) ret(opcode uint8, b bus) {
 func (c *cpu) ret_NC(opcode uint8, b bus) {
 	c.read(c.PC) // TODO: what actually gets read (or written)?
 
+	if c.F.has(CY) {
+		return
+	}
+
 	lo := uint16(b.read(c.SP))
 	c.SP++
 	hi := uint16(b.read(c.SP))
 	c.SP++
-
-	if c.F.has(CY) {
-		return
-	}
 
 	c.PC = hi<<8 | lo
 
@@ -1507,14 +1509,14 @@ func (c *cpu) ret_NC(opcode uint8, b bus) {
 func (c *cpu) ret_NZ(opcode uint8, b bus) {
 	c.read(c.PC) // TODO: what actually gets read (or written)?
 
+	if c.F.has(Z) {
+		return
+	}
+
 	lo := uint16(b.read(c.SP))
 	c.SP++
 	hi := uint16(b.read(c.SP))
 	c.SP++
-
-	if c.F.has(Z) {
-		return
-	}
 
 	c.PC = hi<<8 | lo
 
@@ -1525,14 +1527,14 @@ func (c *cpu) ret_NZ(opcode uint8, b bus) {
 func (c *cpu) ret_Z(opcode uint8, b bus) {
 	c.read(c.PC) // TODO: what actually gets read (or written)?
 
+	if !c.F.has(Z) {
+		return
+	}
+
 	lo := uint16(b.read(c.SP))
 	c.SP++
 	hi := uint16(b.read(c.SP))
 	c.SP++
-
-	if !c.F.has(Z) {
-		return
-	}
 
 	c.PC = hi<<8 | lo
 
@@ -1543,14 +1545,14 @@ func (c *cpu) ret_Z(opcode uint8, b bus) {
 func (c *cpu) ret_r(opcode uint8, b bus) {
 	c.read(c.PC) // TODO: what actually gets read (or written)?
 
+	if !c.F.has(CY) {
+		return
+	}
+
 	lo := uint16(b.read(c.SP))
 	c.SP++
 	hi := uint16(b.read(c.SP))
 	c.SP++
-
-	if !c.F.has(CY) {
-		return
-	}
 
 	c.PC = hi<<8 | lo
 
@@ -1565,6 +1567,7 @@ func (c *cpu) reti(opcode uint8, b bus) {
 	c.SP++
 
 	c.PC = hi<<8 | lo
+	c.IME = true
 
 	c.read(c.PC) // TODO: what actually gets read (or written)?
 }
@@ -1630,7 +1633,37 @@ func (c *cpu) rrca(opcode uint8, b bus) {
 // 0xEF RST 28H 1 16 0 - - - -
 // 0xF7 RST 30H 1 16 0 - - - -
 // 0xFF RST 38H 1 16 0 - - - -
-func (c *cpu) rst(opcode uint8, b bus) { panic("not implemented") }
+func (c *cpu) rst(opcode uint8, b bus) {
+	var addr uint16
+
+	switch opcode {
+	case 0xC7:
+		addr = 0x00
+	case 0xCF:
+		addr = 0x08
+	case 0xD7:
+		addr = 0x10
+	case 0xDF:
+		addr = 0x18
+	case 0xE7:
+		addr = 0x20
+	case 0xEF:
+		addr = 0x28
+	case 0xF7:
+		addr = 0x30
+	case 0xFF:
+		addr = 0x38
+	}
+
+	_ = c.read(c.SP)
+
+	c.SP--
+	b.write(c.SP, uint8(c.PC>>8))
+	c.SP--
+	b.write(c.SP, uint8(c.PC&0xFF))
+
+	c.PC = uint16(addr)
+}
 
 func (c *cpu) illegal(opcode uint8, b bus) { panic("illegal") }
 
