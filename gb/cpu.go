@@ -17,36 +17,25 @@ const (
 	_
 	_
 	_
-	fc // carry
-	fh // halfCarry
-	fn // negative
-	fz // zero
+	CY // carry
+	H  // halfCarry
+	N  // negative
+	Z  // zero
 )
 
 func (f cpuFlags) String() string {
-	buf := make([]rune, 0, 4)
-	if f&fz > 0 {
-		buf = append(buf, 'Z')
-	} else {
-		buf = append(buf, '-')
+	buf := []rune{'-', '-', '-', '-'}
+	if f.has(Z) {
+		buf[0] = 'Z'
 	}
-
-	if f&fn > 0 {
-		buf = append(buf, 'N')
-	} else {
-		buf = append(buf, '-')
+	if f.has(N) {
+		buf[1] = 'N'
 	}
-
-	if f&fh > 0 {
-		buf = append(buf, 'H')
-	} else {
-		buf = append(buf, '-')
+	if f.has(H) {
+		buf[2] = 'H'
 	}
-
-	if f&fc > 0 {
-		buf = append(buf, 'C')
-	} else {
-		buf = append(buf, '-')
+	if f.has(CY) {
+		buf[3] = 'C'
 	}
 
 	return string(buf)
@@ -60,21 +49,13 @@ func (f *cpuFlags) set(flag cpuFlags, v bool) {
 	}
 }
 
+func (f *cpuFlags) has(flag cpuFlags) bool {
+	return *f&flag > 0
+}
+
 func (f *cpuFlags) flip(flag cpuFlags) {
 	*f ^= flag
 }
-
-type cpuStatus uint8
-
-// just guessing for now
-const (
-	fetch cpuStatus = 1 << iota
-	execute
-	read
-	write
-	interrupt
-	halt
-)
 
 type cpu struct {
 	A    uint8
@@ -86,16 +67,27 @@ type cpu struct {
 	PC   uint16
 
 	table [256]op
-
-	// address uint16
-	// data    uint8
-
-	// status  cpuStatus
-	// opstack []op
 }
 
 func (c *cpu) init() {
-	c.genTable()
+	c.table = [256]op{
+		c.nop, c.ld_rr_d16, c.ld_irr_r, c.inc_rr, c.inc_r, c.dec_r, c.ld_r_d8, c.rlca, c.ld_ia16_sp, c.add_rr_rr, c.ld_r_irr, c.dec_rr, c.inc_r, c.dec_r, c.ld_r_d8, c.rrca,
+		c.stop, c.ld_rr_d16, c.ld_irr_r, c.inc_rr, c.inc_r, c.dec_r, c.ld_r_d8, c.rla, c.jr_r8, c.add_rr_rr, c.ld_r_irr, c.dec_rr, c.inc_r, c.dec_r, c.ld_r_d8, c.rra,
+		c.jr_NZ_r8, c.ld_rr_d16, c.ld_hlid_r, c.inc_rr, c.inc_r, c.dec_r, c.ld_r_d8, c.daa, c.jr_Z_r8, c.add_rr_rr, c.ld_r_hlid, c.dec_rr, c.inc_r, c.dec_r, c.ld_r_d8, c.cpl,
+		c.jr_NC_r8, c.ld_sp_d16, c.ld_hlid_r, c.inc_sp, c.inc_irr, c.dec_irr, c.ld_irr_d8, c.scf, c.jr_r_r8, c.add_rr_sp, c.ld_r_hlid, c.dec_sp, c.inc_r, c.dec_r, c.ld_r_d8, c.ccf,
+		c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_irr, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_irr, c.ld_r_r,
+		c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_irr, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_irr, c.ld_r_r,
+		c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_irr, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_irr, c.ld_r_r,
+		c.ld_irr_r, c.ld_irr_r, c.ld_irr_r, c.ld_irr_r, c.ld_irr_r, c.ld_irr_r, c.halt, c.ld_irr_r, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_irr, c.ld_r_r,
+		c.add_r_r, c.add_r_r, c.add_r_r, c.add_r_r, c.add_r_r, c.add_r_r, c.add_r_irr, c.add_r_r, c.adc_r_r, c.adc_r_r, c.adc_r_r, c.adc_r_r, c.adc_r_r, c.adc_r_r, c.adc_r_irr, c.adc_r_r,
+		c.sub_r, c.sub_r, c.sub_r, c.sub_r, c.sub_r, c.sub_r, c.sub_irr, c.sub_r, c.sbc_r_r, c.sbc_r_r, c.sbc_r_r, c.sbc_r_r, c.sbc_r_r, c.sbc_r_r, c.sbc_r_irr, c.sbc_r_r,
+		c.and_r, c.and_r, c.and_r, c.and_r, c.and_r, c.and_r, c.and_irr, c.and_r, c.xor_r, c.xor_r, c.xor_r, c.xor_r, c.xor_r, c.xor_r, c.xor_irr, c.xor_r,
+		c.or_r, c.or_r, c.or_r, c.or_r, c.or_r, c.or_r, c.or_irr, c.or_r, c.cp_r, c.cp_r, c.cp_r, c.cp_r, c.cp_r, c.cp_r, c.cp_irr, c.cp_r,
+		c.ret_NZ, c.pop_rr, c.jp_NZ_a16, c.jp_a16, c.call_NZ_a16, c.push_rr, c.add_r_d8, c.rst, c.ret_Z, c.ret, c.jp_Z_a16, c.prefix_, c.call_Z_a16, c.call_a16, c.adc_r_d8, c.rst,
+		c.ret_NC, c.pop_rr, c.jp_NC_a16, c.illegal, c.call_NC_a16, c.push_rr, c.sub_d8, c.rst, c.ret_r, c.reti, c.jp_r_a16, c.illegal, c.call_r_a16, c.illegal, c.sbc_r_d8, c.rst,
+		c.ldh_ia8_r, c.pop_rr, c.ld_ir_r, c.illegal, c.illegal, c.push_rr, c.and_d8, c.rst, c.add_sp_r8, c.jp_irr, c.ld_ia16_r, c.illegal, c.illegal, c.illegal, c.xor_d8, c.rst,
+		c.ldh_r_ia8, c.pop_rr, c.ld_r_ir, c.di, c.illegal, c.push_rr, c.or_d8, c.rst, c.ld_rr_SP_r8, c.ld_sp_rr, c.ld_r_ia16, c.ei, c.illegal, c.illegal, c.cp_d8, c.rst,
+	}
 }
 
 func (c *cpu) clock(b bus) {
@@ -123,60 +115,39 @@ func (c *cpu) executeInst(b bus) {
 	c.table[op](op, b)
 }
 
-func (c *cpu) genTable() {
-	c.table = [256]op{
-		c.nop, c.ld_rr_d16, c.ld_irr_r, c.inc_rr, c.inc_r, c.dec_r, c.ld_r_d8, c.rlca, c.ld_ia16_sp, c.add_rr_rr, c.ld_r_irr, c.dec_rr, c.inc_r, c.dec_r, c.ld_r_d8, c.rrca, c.stop_,
-		c.ld_rr_d16, c.ld_irr_r, c.inc_rr, c.inc_r, c.dec_r, c.ld_r_d8, c.rla, c.jr_r8, c.add_rr_rr, c.ld_r_irr, c.dec_rr, c.inc_r, c.dec_r, c.ld_r_d8, c.rra, c.jr_NZ_r8,
-		c.ld_rr_d16, c.ld__r, c.inc_rr, c.inc_r, c.dec_r, c.ld_r_d8, c.daa, c.jr_Z_r8, c.add_rr_rr, c.ld_r_hlid, c.dec_rr, c.inc_r, c.dec_r, c.ld_r_d8, c.cpl, c.jr_NC_r8,
-		c.ld_sp_d16, c.ld__r, c.inc_sp, c.inc_irr, c.dec_irr, c.ld_irr_d8, c.scf, c.jr_r_r8, c.add_rr_sp, c.ld_r_hlid, c.dec_sp, c.inc_r, c.dec_r, c.ld_r_d8, c.ccf, c.ld_r_r,
-		c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_irr, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_irr, c.ld_r_r, c.ld_r_r,
-		c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_irr, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_irr, c.ld_r_r, c.ld_r_r,
-		c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_irr, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_irr, c.ld_r_r, c.ld_irr_r,
-		c.ld_irr_r, c.ld_irr_r, c.ld_irr_r, c.ld_irr_r, c.ld_irr_r, c.halt, c.ld_irr_r, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_r, c.ld_r_irr, c.ld_r_r, c.add_r_r,
-		c.add_r_r, c.add_r_r, c.add_r_r, c.add_r_r, c.add_r_r, c.add_r_irr, c.add_r_r, c.adc_r_r, c.adc_r_r, c.adc_r_r, c.adc_r_r, c.adc_r_r, c.adc_r_r, c.adc_r_irr, c.adc_r_r, c.sub_r,
-		c.sub_r, c.sub_r, c.sub_r, c.sub_r, c.sub_r, c.sub_irr, c.sub_r, c.sbc_r_r, c.sbc_r_r, c.sbc_r_r, c.sbc_r_r, c.sbc_r_r, c.sbc_r_r, c.sbc_r_irr, c.sbc_r_r, c.and_r,
-		c.and_r, c.and_r, c.and_r, c.and_r, c.and_r, c.and_irr, c.and_r, c.xor_r, c.xor_r, c.xor_r, c.xor_r, c.xor_r, c.xor_r, c.xor_irr, c.xor_r, c.or_r,
-		c.or_r, c.or_r, c.or_r, c.or_r, c.or_r, c.or_irr, c.or_r, c.cp_r, c.cp_r, c.cp_r, c.cp_r, c.cp_r, c.cp_r, c.cp_irr, c.cp_r, c.ret_NZ,
-		c.pop_rr, c.jp_NZ_a16, c.jp_a16, c.call_NZ_a16, c.push_rr, c.add_r_d8, c.rst_, c.ret_Z, c.ret, c.jp_Z_a16, c.prefix_, c.call_Z_a16, c.call_a16, c.adc_r_d8, c.rst_, c.ret_NC,
-		c.pop_rr, c.jp_NC_a16, c.call_NC_a16, c.push_rr, c.sub_d8, c.rst_, c.ret_r, c.reti, c.jp_r_a16, c.call_r_a16, c.sbc_r_d8, c.rst_, c.ldh_ia8_r, c.pop_rr, c.ld_ir_r, c.push_rr,
-		c.and_d8, c.rst_, c.add_sp_r8, c.jp_irr, c.ld_ia16_r, c.xor_d8, c.rst_, c.ldh_r_ia8, c.pop_rr, c.ld_r_ir, c.di, c.push_rr, c.or_d8, c.rst_, c.ld_rr_SP_r8, c.ld_sp_rr,
-		c.ld_r_ia16, c.ei, c.cp_d8, c.rst_,
-	}
-}
-
 func (c *cpu) adc8(a, b uint8) uint8 {
 	var carry uint8
-	if c.F&fc > 0 {
+	if c.F.has(CY) {
 		carry = 1
 	}
 
-	c.F.set(fz, a+b+carry == 0)
-	c.F.set(fn, false)
-	c.F.set(fh, a&0xF+b&0xF+carry > 0xF)
-	c.F.set(fc, uint16(a)+uint16(b)+uint16(carry) > 0xFF)
+	c.F.set(Z, a+b+carry == 0)
+	c.F.set(N, false)
+	c.F.set(H, a&0xF+b&0xF+carry > 0xF)
+	c.F.set(CY, uint16(a)+uint16(b)+uint16(carry) > 0xFF)
 
 	return a + b + carry
 }
 
 func (c *cpu) sbc8(a, b uint8) uint8 {
-	c.F.flip(fc)
+	c.F.flip(CY)
 
 	v := c.adc8(a, b^0xFF)
 
-	c.F.set(fn, true)
-	c.F.flip(fh)
-	c.F.flip(fc)
+	c.F.set(N, true)
+	c.F.flip(H)
+	c.F.flip(CY)
 
 	return v
 }
 
 func (c *cpu) add8(a, b uint8) uint8 {
-	c.F.set(fc, false)
+	c.F.set(CY, false)
 	return c.adc8(a, b)
 }
 
 func (c *cpu) sub8(a, b uint8) uint8 {
-	c.F.set(fc, false)
+	c.F.set(CY, false)
 	return c.sbc8(a, b)
 }
 
@@ -293,9 +264,9 @@ func (c *cpu) add_rr_rr(opcode uint8, b bus) {
 		v = uint16(c.H)<<8 | uint16(c.L)
 	}
 
-	c.F.set(fn, false)
-	c.F.set(fh, hl&0xFFF+v&0xFFF > 0xFFF)
-	c.F.set(fc, uint32(hl)+uint32(v) > 0xFFFF)
+	c.F.set(N, false)
+	c.F.set(H, hl&0xFFF+v&0xFFF > 0xFFF)
+	c.F.set(CY, uint32(hl)+uint32(v) > 0xFFFF)
 
 	hl += v
 
@@ -310,9 +281,9 @@ func (c *cpu) add_rr_sp(opcode uint8, b bus) {
 	hl := uint16(c.H)<<8 | uint16(c.L)
 	v := c.SP
 
-	c.F.set(fn, false)
-	c.F.set(fh, hl&0xFFF+v&0xFFF > 0xFFF)
-	c.F.set(fc, uint32(hl)+uint32(v) > 0xFFFF)
+	c.F.set(N, false)
+	c.F.set(H, hl&0xFFF+v&0xFFF > 0xFFF)
+	c.F.set(CY, uint32(hl)+uint32(v) > 0xFFFF)
 
 	hl += v
 
@@ -330,10 +301,10 @@ func (c *cpu) add_sp_r8(opcode uint8, b bus) {
 	v := uint16(r8)
 	c.SP += v
 
-	c.F.set(fz, false)
-	c.F.set(fn, false)
-	c.F.set(fh, c.SP&0xFFF+v&0xFFF > 0xFFF)
-	c.F.set(fc, uint32(c.SP)+uint32(v) > 0xFFFF)
+	c.F.set(Z, false)
+	c.F.set(N, false)
+	c.F.set(H, c.SP&0xFFF+v&0xFFF > 0xFFF)
+	c.F.set(CY, uint32(c.SP)+uint32(v) > 0xFFFF)
 
 	b.read(c.PC) // TODO: what actually gets read (or written)?
 	b.read(c.PC) // TODO: what actually gets read (or written)?
@@ -345,10 +316,10 @@ func (c *cpu) and_d8(opcode uint8, b bus) {
 	c.PC++
 
 	c.A &= v
-	c.F.set(fz, c.A == 0)
-	c.F.set(fn, false)
-	c.F.set(fh, true)
-	c.F.set(fc, false)
+	c.F.set(Z, c.A == 0)
+	c.F.set(N, false)
+	c.F.set(H, true)
+	c.F.set(CY, false)
 }
 
 // 0xA6 AND (HL)        1 8 0 Z 0 1 0
@@ -360,10 +331,10 @@ func (c *cpu) and_irr(opcode uint8, b bus) {
 	v := b.read(addr)
 
 	c.A &= v
-	c.F.set(fz, c.A == 0)
-	c.F.set(fn, false)
-	c.F.set(fh, true)
-	c.F.set(fc, false)
+	c.F.set(Z, c.A == 0)
+	c.F.set(N, false)
+	c.F.set(H, true)
+	c.F.set(CY, false)
 }
 
 // 0xA0 AND B   1 4 0 Z 0 1 0
@@ -393,10 +364,10 @@ func (c *cpu) and_r(opcode uint8, b bus) {
 	}
 
 	c.A &= v
-	c.F.set(fz, c.A == 0)
-	c.F.set(fn, false)
-	c.F.set(fh, true)
-	c.F.set(fc, false)
+	c.F.set(Z, c.A == 0)
+	c.F.set(N, false)
+	c.F.set(H, true)
+	c.F.set(CY, false)
 }
 
 // 0xD4 CALL NC,a16     3 24 12 - - - -
@@ -406,7 +377,7 @@ func (c *cpu) call_NC_a16(opcode uint8, b bus) {
 	hi := uint16(b.read(c.PC))
 	c.PC++
 
-	if c.F&fc > 0 {
+	if c.F.has(CY) {
 		return
 	}
 
@@ -426,7 +397,7 @@ func (c *cpu) call_NZ_a16(opcode uint8, b bus) {
 	hi := uint16(b.read(c.PC))
 	c.PC++
 
-	if c.F&fz > 0 {
+	if c.F.has(Z) {
 		return
 	}
 
@@ -446,7 +417,7 @@ func (c *cpu) call_Z_a16(opcode uint8, b bus) {
 	hi := uint16(b.read(c.PC))
 	c.PC++
 
-	if c.F&fz == 0 {
+	if !c.F.has(Z) {
 		return
 	}
 
@@ -482,7 +453,7 @@ func (c *cpu) call_r_a16(opcode uint8, b bus) {
 	hi := uint16(b.read(c.PC))
 	c.PC++
 
-	if c.F&fc == 0 {
+	if !c.F.has(CY) {
 		return
 	}
 
@@ -497,13 +468,13 @@ func (c *cpu) call_r_a16(opcode uint8, b bus) {
 
 // 0x3F CCF     1 4 0 - 0 0 C
 func (c *cpu) ccf(opcode uint8, b bus) {
-	c.F.set(fn, false)
-	c.F.set(fh, false)
+	c.F.set(N, false)
+	c.F.set(H, false)
 
-	if c.F&fc > 0 {
-		c.F.set(fc, false)
+	if c.F.has(CY) {
+		c.F.set(CY, false)
 	} else {
-		c.F.set(fc, true)
+		c.F.set(CY, true)
 	}
 }
 
@@ -512,10 +483,10 @@ func (c *cpu) cp_d8(opcode uint8, b bus) {
 	v := b.read(c.PC)
 	c.PC++
 
-	c.F.set(fz, c.A == v)
-	c.F.set(fn, true)
-	c.F.set(fh, v < c.A)
-	c.F.set(fc, v > c.A)
+	c.F.set(Z, c.A == v)
+	c.F.set(N, true)
+	c.F.set(H, v < c.A)
+	c.F.set(CY, v > c.A)
 }
 
 // 0xBE CP (HL) 1 8 0 Z 1 H C
@@ -525,10 +496,10 @@ func (c *cpu) cp_irr(opcode uint8, b bus) {
 	addr := hi<<8 | lo
 	v := b.read(addr)
 
-	c.F.set(fz, c.A == v)
-	c.F.set(fn, true)
-	c.F.set(fh, v < c.A)
-	c.F.set(fc, v > c.A)
+	c.F.set(Z, c.A == v)
+	c.F.set(N, true)
+	c.F.set(H, v < c.A)
+	c.F.set(CY, v > c.A)
 }
 
 // 0xB8 CP B    1 4 0 Z 1 H C
@@ -557,17 +528,17 @@ func (c *cpu) cp_r(opcode uint8, b bus) {
 		v = c.A
 	}
 
-	c.F.set(fz, c.A == v)
-	c.F.set(fn, true)
-	c.F.set(fh, v < c.A)
-	c.F.set(fc, v > c.A)
+	c.F.set(Z, c.A == v)
+	c.F.set(N, true)
+	c.F.set(H, v < c.A)
+	c.F.set(CY, v > c.A)
 }
 
 // 0x2F CPL     1 4 0 - 1 1 -
 func (c *cpu) cpl(opcode uint8, b bus) {
 	c.A = c.A ^ 0xFF
-	c.F.set(fn, true)
-	c.F.set(fh, true)
+	c.F.set(N, true)
+	c.F.set(H, true)
 }
 
 // 0x27 DAA     1 4 0 Z - 0 C
@@ -581,9 +552,9 @@ func (c *cpu) dec_irr(opcode uint8, b bus) {
 
 	v := b.read(addr)
 
-	c.F.set(fz, v-1 == 0)
-	c.F.set(fn, true)
-	c.F.set(fh, v&0xF == 0)
+	c.F.set(Z, v-1 == 0)
+	c.F.set(N, true)
+	c.F.set(H, v&0xF == 0)
 
 	b.write(addr, v-1)
 }
@@ -616,9 +587,9 @@ func (c *cpu) dec_r(opcode uint8, b bus) {
 	}
 
 	v := *r
-	c.F.set(fz, v-1 == 0)
-	c.F.set(fn, true)
-	c.F.set(fh, v&0xF == 0)
+	c.F.set(Z, v-1 == 0)
+	c.F.set(N, true)
+	c.F.set(H, v&0xF == 0)
 	*r = v - 1
 }
 
@@ -670,9 +641,9 @@ func (c *cpu) inc_irr(opcode uint8, b bus) {
 	addr := hi<<8 | lo
 	v := b.read(addr)
 
-	c.F.set(fz, v+1 == 0)
-	c.F.set(fn, false)
-	c.F.set(fh, v&0xF == 0xF)
+	c.F.set(Z, v+1 == 0)
+	c.F.set(N, false)
+	c.F.set(H, v&0xF == 0xF)
 
 	b.write(addr, v+1)
 }
@@ -705,9 +676,9 @@ func (c *cpu) inc_r(opcode uint8, b bus) {
 	}
 
 	v := *r
-	c.F.set(fz, v+1 == 0)
-	c.F.set(fn, false)
-	c.F.set(fh, v&0xF == 0xF)
+	c.F.set(Z, v+1 == 0)
+	c.F.set(N, false)
+	c.F.set(H, v&0xF == 0xF)
 	*r = v + 1
 }
 
@@ -750,7 +721,7 @@ func (c *cpu) jp_NC_a16(opcode uint8, b bus) {
 	hi := uint16(b.read(c.PC))
 	c.PC++
 
-	if c.F&fc > 0 {
+	if c.F.has(CY) {
 		return
 	}
 
@@ -765,7 +736,7 @@ func (c *cpu) jp_NZ_a16(opcode uint8, b bus) {
 	hi := uint16(b.read(c.PC))
 	c.PC++
 
-	if c.F&fz > 0 {
+	if c.F.has(Z) {
 		return
 	}
 
@@ -780,7 +751,7 @@ func (c *cpu) jp_Z_a16(opcode uint8, b bus) {
 	hi := uint16(b.read(c.PC))
 	c.PC++
 
-	if c.F&fz == 0 {
+	if !c.F.has(Z) {
 		return
 	}
 
@@ -814,7 +785,7 @@ func (c *cpu) jp_r_a16(opcode uint8, b bus) {
 	hi := uint16(b.read(c.PC))
 	c.PC++
 
-	if c.F&fc == 0 {
+	if !c.F.has(CY) {
 		return
 	}
 
@@ -827,7 +798,7 @@ func (c *cpu) jr_NC_r8(opcode uint8, b bus) {
 	r8 := uint16(int8(b.read(c.PC)))
 	c.PC++
 
-	if c.F&fc > 0 {
+	if c.F.has(CY) {
 		return
 	}
 
@@ -840,7 +811,7 @@ func (c *cpu) jr_NZ_r8(opcode uint8, b bus) {
 	r8 := uint16(int8(b.read(c.PC)))
 	c.PC++
 
-	if c.F&fz > 0 {
+	if c.F.has(Z) {
 		return
 	}
 
@@ -853,7 +824,7 @@ func (c *cpu) jr_Z_r8(opcode uint8, b bus) {
 	r8 := uint16(int8(b.read(c.PC)))
 	c.PC++
 
-	if c.F&fz == 0 {
+	if !c.F.has(Z) {
 		return
 	}
 
@@ -875,7 +846,7 @@ func (c *cpu) jr_r_r8(opcode uint8, b bus) {
 	r8 := uint16(int8(b.read(c.PC)))
 	c.PC++
 
-	if c.F&fc == 0 {
+	if !c.F.has(CY) {
 		return
 	}
 
@@ -885,7 +856,7 @@ func (c *cpu) jr_r_r8(opcode uint8, b bus) {
 
 // 0x22 LD (HL+),A      1 8 0 - - - -
 // 0x32 LD (HL-),A      1 8 0 - - - -
-func (c *cpu) ld__r(opcode uint8, b bus) {
+func (c *cpu) ld_hlid_r(opcode uint8, b bus) {
 	addr := uint16(c.H)<<8 | uint16(c.L)
 	b.write(addr, c.A)
 
@@ -1330,10 +1301,10 @@ func (c *cpu) ld_rr_SP_r8(opcode uint8, b bus) {
 	c.L = uint8(result & 0xFF)
 	c.H = uint8(result >> 8)
 
-	c.F.set(fz, false)
-	c.F.set(fn, false)
-	c.F.set(fh, c.SP&0xF+v&0xF > 0xF)
-	c.F.set(fc, uint32(c.SP)+uint32(v) > 0xFFFF)
+	c.F.set(Z, false)
+	c.F.set(N, false)
+	c.F.set(H, c.SP&0xF+v&0xF > 0xF)
+	c.F.set(CY, uint32(c.SP)+uint32(v) > 0xFFFF)
 }
 
 // 0x01 LD BC,d16       3 12 0 - - - -
@@ -1399,7 +1370,7 @@ func (c *cpu) or_d8(opcode uint8, b bus) {
 	c.PC++
 
 	c.A |= v
-	c.F.set(fz, c.A == 0)
+	c.F.set(Z, c.A == 0)
 }
 
 // 0xB6 OR (HL) 1 8 0 Z 0 0 0
@@ -1410,7 +1381,7 @@ func (c *cpu) or_irr(opcode uint8, b bus) {
 	v := b.read(addr)
 
 	c.A |= v
-	c.F.set(fz, c.A == 0)
+	c.F.set(Z, c.A == 0)
 }
 
 // 0xB0 OR B    1 4 0 Z 0 0 0
@@ -1440,7 +1411,7 @@ func (c *cpu) or_r(opcode uint8, b bus) {
 	}
 
 	c.A |= v
-	c.F.set(fz, c.A == 0)
+	c.F.set(Z, c.A == 0)
 }
 
 // 0xC1 POP BC  1 12 0 - - - -
@@ -1523,7 +1494,7 @@ func (c *cpu) ret_NC(opcode uint8, b bus) {
 	hi := uint16(b.read(c.SP))
 	c.SP++
 
-	if c.F&fc > 0 {
+	if c.F.has(CY) {
 		return
 	}
 
@@ -1541,7 +1512,7 @@ func (c *cpu) ret_NZ(opcode uint8, b bus) {
 	hi := uint16(b.read(c.SP))
 	c.SP++
 
-	if c.F&fz > 0 {
+	if c.F.has(Z) {
 		return
 	}
 
@@ -1559,7 +1530,7 @@ func (c *cpu) ret_Z(opcode uint8, b bus) {
 	hi := uint16(b.read(c.SP))
 	c.SP++
 
-	if c.F&fz == 0 {
+	if !c.F.has(Z) {
 		return
 	}
 
@@ -1577,7 +1548,7 @@ func (c *cpu) ret_r(opcode uint8, b bus) {
 	hi := uint16(b.read(c.SP))
 	c.SP++
 
-	if c.F&fc == 0 {
+	if !c.F.has(CY) {
 		return
 	}
 
@@ -1601,16 +1572,16 @@ func (c *cpu) reti(opcode uint8, b bus) {
 // 0x17 RLA     1 4 0 0 0 0 C
 func (c *cpu) rla(opcode uint8, b bus) {
 	var carryIn uint8
-	if c.F&fc > 0 {
+	if c.F.has(CY) {
 		carryIn = 1
 	}
 	carryOut := c.A & 0x80
 	c.A = c.A<<1 | carryIn
 
-	c.F.set(fz, false)
-	c.F.set(fn, false)
-	c.F.set(fh, false)
-	c.F.set(fc, carryOut > 0)
+	c.F.set(Z, false)
+	c.F.set(N, false)
+	c.F.set(H, false)
+	c.F.set(CY, carryOut > 0)
 }
 
 // 0x07 RLCA    1 4 0 0 0 0 C
@@ -1618,26 +1589,26 @@ func (c *cpu) rlca(opcode uint8, b bus) {
 	carryOut := c.A & 0x80
 	c.A = c.A<<1 | carryOut>>7
 
-	c.F.set(fz, false)
-	c.F.set(fn, false)
-	c.F.set(fh, false)
-	c.F.set(fc, carryOut > 0)
+	c.F.set(Z, false)
+	c.F.set(N, false)
+	c.F.set(H, false)
+	c.F.set(CY, carryOut > 0)
 }
 
 // 0x1F RRA     1 4 0 0 0 0 C
 func (c *cpu) rra(opcode uint8, b bus) {
 	var carryIn uint8
-	if c.F&fc > 0 {
+	if c.F.has(CY) {
 		carryIn = 1 << 7
 	}
 
 	carryOut := c.A & 0x1
 	c.A = c.A>>1 | carryIn
 
-	c.F.set(fz, false)
-	c.F.set(fn, false)
-	c.F.set(fh, false)
-	c.F.set(fc, carryOut > 0)
+	c.F.set(Z, false)
+	c.F.set(N, false)
+	c.F.set(H, false)
+	c.F.set(CY, carryOut > 0)
 }
 
 // 0x0F RRCA    1 4 0 0 0 0 C
@@ -1645,10 +1616,10 @@ func (c *cpu) rrca(opcode uint8, b bus) {
 	carryOut := c.A & 0x1
 	c.A = c.A>>1 | carryOut<<7
 
-	c.F.set(fz, false)
-	c.F.set(fn, false)
-	c.F.set(fh, false)
-	c.F.set(fc, carryOut > 0)
+	c.F.set(Z, false)
+	c.F.set(N, false)
+	c.F.set(H, false)
+	c.F.set(CY, carryOut > 0)
 }
 
 // 0xC7 RST 00H 1 16 0 - - - -
@@ -1659,7 +1630,9 @@ func (c *cpu) rrca(opcode uint8, b bus) {
 // 0xEF RST 28H 1 16 0 - - - -
 // 0xF7 RST 30H 1 16 0 - - - -
 // 0xFF RST 38H 1 16 0 - - - -
-func (c *cpu) rst_(opcode uint8, b bus) { panic("not implemented") }
+func (c *cpu) rst(opcode uint8, b bus) { panic("not implemented") }
+
+func (c *cpu) illegal(opcode uint8, b bus) { panic("illegal") }
 
 // 0xDE SBC A,d8        2 8 0 Z 1 H C
 func (c *cpu) sbc_r_d8(opcode uint8, b bus) {
@@ -1710,11 +1683,11 @@ func (c *cpu) sbc_r_r(opcode uint8, b bus) {
 
 // 0x37 SCF     1 4 0 - 0 0 1
 func (c *cpu) scf(opcode uint8, b bus) {
-	c.F.set(fc, true)
+	c.F.set(CY, true)
 }
 
 // 0x10 STOP 0  2 4 0 - - - -
-func (c *cpu) stop_(opcode uint8, b bus) { panic("not implemented") }
+func (c *cpu) stop(opcode uint8, b bus) { panic("not implemented") }
 
 // 0xD6 SUB d8  2 8 0 Z 1 H C
 func (c *cpu) sub_d8(opcode uint8, b bus) {
@@ -1769,7 +1742,7 @@ func (c *cpu) xor_d8(opcode uint8, b bus) {
 	c.PC++
 
 	c.A = c.A ^ v
-	c.F.set(fz, c.A == 0)
+	c.F.set(Z, c.A == 0)
 }
 
 // 0xAE XOR (HL)        1 8 0 Z 0 0 0
@@ -1780,7 +1753,7 @@ func (c *cpu) xor_irr(opcode uint8, b bus) {
 	v := b.read(addr)
 
 	c.A = c.A ^ v
-	c.F.set(fz, c.A == 0)
+	c.F.set(Z, c.A == 0)
 }
 
 // 0xA8 XOR B   1 4 0 Z 0 0 0
@@ -1810,5 +1783,5 @@ func (c *cpu) xor_r(opcode uint8, b bus) {
 	}
 
 	c.A = c.A ^ v
-	c.F.set(fz, c.A == 0)
+	c.F.set(Z, c.A == 0)
 }

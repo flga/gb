@@ -55,10 +55,10 @@ func table() {
 	instructions := parse()
 
 	fmt.Println("func (c *cpu) genTable() {")
-	fmt.Println("	c.table = [...]op{")
+	fmt.Println("	c.table = [256]op{")
 	for i, inst := range instructions {
 		fmt.Printf("c.%s,", inst.op)
-		if i > 0 && i%16 == 0 {
+		if i > 0 && (i+1)%16 == 0 {
 			fmt.Println("		")
 		}
 	}
@@ -100,6 +100,9 @@ func parse() []instruction {
 	for i, s := range data {
 		s = strings.TrimSpace(s)
 		if len(s) == 0 {
+			instructions = append(instructions, instruction{
+				op: "illegal",
+			})
 			continue
 		}
 
@@ -146,8 +149,12 @@ func parse() []instruction {
 				operand = "ia16"
 			case "(a8)":
 				operand = "ia8"
+			case "(HL+)", "(HL-)":
+				operand = "hlid"
 			}
-			inst.op += "_" + operand
+			if operand != "" {
+				inst.op += "_" + operand
+			}
 
 			if len(parts) > 1 {
 				var operand string
@@ -176,8 +183,12 @@ func parse() []instruction {
 					operand = "ia16"
 				case "(a8)":
 					operand = "ia8"
+				case "(HL+)", "(HL-)":
+					operand = "hlid"
 				}
-				inst.op += "_" + operand
+				if operand != "" {
+					inst.op += "_" + operand
+				}
 			}
 		}
 
