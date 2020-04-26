@@ -3329,6 +3329,195 @@ func TestCpuOps0xE0_0xEF(t *testing.T) {
 	}
 }
 
+func TestCpuOps0xF0_0xFF(t *testing.T) {
+	tests := map[string]cpuSingleTest{
+		"LDH A,(a8)": {
+			code:    []byte{0xF0, 0x42},
+			pre:     cpuData{PC: 0x8000},
+			bus:     testBus{0xFF42: 0x41},
+			want:    cpuData{A: 0x41, PC: 0x8002},
+			wantbus: testBus{0xFF42: 0x41},
+		},
+
+		"POP AF": {
+			code:    []byte{0xF1},
+			pre:     cpuData{SP: 0x0000, PC: 0x8000},
+			bus:     testBus{0x0000: 0x01, 0x0001: 0x40},
+			want:    cpuData{A: 0x40, F: 0x01, SP: 0x0002, PC: 0x8001},
+			wantbus: testBus{0x0000: 0x01, 0x0001: 0x40},
+		},
+
+		"LD A,(C)": {
+			code:    []byte{0xF2},
+			pre:     cpuData{C: 0x42, PC: 0x8000},
+			bus:     testBus{0xFF42: 0x41},
+			want:    cpuData{A: 0x41, C: 0x42, PC: 0x8001},
+			wantbus: testBus{0xFF42: 0x41},
+		},
+
+		"DI": {
+			code:    []byte{0xF3},
+			pre:     cpuData{PC: 0x8000, IME: true},
+			bus:     testBus{},
+			want:    cpuData{PC: 0x8001, IME: false},
+			wantbus: testBus{},
+		},
+		// TODO: illegal
+
+		"PUSH AF": {
+			code:    []byte{0xF5},
+			pre:     cpuData{A: 0x40, F: 0x1, SP: 0x0009, PC: 0x8000},
+			bus:     testBus{},
+			want:    cpuData{A: 0x40, F: 0x1, SP: 0x0007, PC: 0x8001},
+			wantbus: testBus{0x0008: 0x40, 0x0007: 0x1},
+		},
+
+		"OR d8 00": {
+			code:    []byte{0xF6, 0x00},
+			pre:     cpuData{A: 0x00, PC: 0x8000},
+			bus:     testBus{},
+			want:    cpuData{A: 0x00, F: Z, PC: 0x8002},
+			wantbus: testBus{},
+		},
+		"OR d8 10": {
+			code:    []byte{0xF6, 0x00},
+			pre:     cpuData{A: 0x01, PC: 0x8000},
+			bus:     testBus{},
+			want:    cpuData{A: 0x01, PC: 0x8002},
+			wantbus: testBus{},
+		},
+		"OR d8 01": {
+			code:    []byte{0xF6, 0x01},
+			pre:     cpuData{A: 0x00, PC: 0x8000},
+			bus:     testBus{},
+			want:    cpuData{A: 0x01, PC: 0x8002},
+			wantbus: testBus{},
+		},
+		"OR d8 11": {
+			code:    []byte{0xF6, 0x01},
+			pre:     cpuData{A: 0x01, PC: 0x8000},
+			bus:     testBus{},
+			want:    cpuData{A: 0x01, PC: 0x8002},
+			wantbus: testBus{},
+		},
+
+		"RST 30H": {
+			code:    []byte{0xF7},
+			pre:     cpuData{SP: 0x0009, PC: 0x8000},
+			bus:     testBus{},
+			want:    cpuData{SP: 0x0007, PC: 0x0030},
+			wantbus: testBus{0x0008: 0x80, 0x0007: 0x01},
+		},
+
+		"LD HL,SP+r8 +42": {
+			code:    []byte{0xF8, 0x42},
+			pre:     cpuData{SP: 0x2000, PC: 0x8000},
+			bus:     testBus{},
+			want:    cpuData{H: 0x20, L: 0x42, SP: 0x2000, PC: 0x8002},
+			wantbus: testBus{},
+		},
+		"LD HL,SP+r8 -42": {
+			code:    []byte{0xF8, 0x42 ^ 0xFF + 1},
+			pre:     cpuData{SP: 0x2000, PC: 0x8000},
+			bus:     testBus{},
+			want:    cpuData{H: 0x1F, L: 0xBE, SP: 0x2000, PC: 0x8002},
+			wantbus: testBus{},
+		},
+		"LD HL,SP+r8 zero": {
+			code:    []byte{0xF8, 0x00},
+			pre:     cpuData{SP: 0x0000, PC: 0x8000},
+			bus:     testBus{},
+			want:    cpuData{H: 0x00, L: 0x00, SP: 0x0000, PC: 0x8002},
+			wantbus: testBus{},
+		},
+		"LD HL,SP+r8 + half carry": {
+			code:    []byte{0xF8, 0x01},
+			pre:     cpuData{SP: 0x200F, PC: 0x8000},
+			bus:     testBus{},
+			want:    cpuData{H: 0x20, L: 0x10, F: H, SP: 0x200F, PC: 0x8002},
+			wantbus: testBus{},
+		},
+		"LD HL,SP+r8 - half carry": {
+			code:    []byte{0xF8, 0xEF},
+			pre:     cpuData{SP: 0x0001, PC: 0x8000},
+			bus:     testBus{},
+			want:    cpuData{H: 0xFF, L: 0xF0, F: H, SP: 0x0001, PC: 0x8002},
+			wantbus: testBus{},
+		},
+		"LD HL,SP+r8 127": {
+			code:    []byte{0xF8, 0x7F},
+			pre:     cpuData{SP: 0x2000, PC: 0x8000},
+			bus:     testBus{},
+			want:    cpuData{H: 0x20, L: 0x7F, SP: 0x2000, PC: 0x8002},
+			wantbus: testBus{},
+		},
+		"LD HL,SP+r8 -1": {
+			code:    []byte{0xF8, 0xFF},
+			pre:     cpuData{SP: 0x0001, PC: 0x8000},
+			bus:     testBus{},
+			want:    cpuData{H: 0x00, L: 0x00, F: H | CY, SP: 0x0001, PC: 0x8002},
+			wantbus: testBus{},
+		},
+		"LD HL,SP+r8 -1 carry": {
+			code:    []byte{0xF8, 0xFF},
+			pre:     cpuData{SP: 0x0000, PC: 0x8000},
+			bus:     testBus{},
+			want:    cpuData{H: 0xFF, L: 0xFF, SP: 0x0000, PC: 0x8002},
+			wantbus: testBus{},
+		},
+		"LD HL,SP+r8 +1 carry": {
+			code:    []byte{0xF8, 0x01},
+			pre:     cpuData{SP: 0xFFFF, PC: 0x8000},
+			bus:     testBus{},
+			want:    cpuData{H: 0x00, L: 0x00, F: H | CY, SP: 0xFFFF, PC: 0x8002},
+			wantbus: testBus{},
+		},
+
+		"LD SP,HL": {
+			code:    []byte{0xF9},
+			pre:     cpuData{H: 0x40, L: 0x01, PC: 0x8000},
+			bus:     testBus{},
+			want:    cpuData{H: 0x40, L: 0x01, SP: 0x4001, PC: 0x8001},
+			wantbus: testBus{},
+		},
+
+		"LD A,(a16)": {
+			code:    []byte{0xFA, 0x01, 0x42},
+			pre:     cpuData{PC: 0x8000},
+			bus:     testBus{0x4201: 0x41},
+			want:    cpuData{A: 0x41, PC: 0x8003},
+			wantbus: testBus{0x4201: 0x41},
+		},
+
+		"EI": {
+			code:    []byte{0xFB},
+			pre:     cpuData{PC: 0x8000},
+			bus:     testBus{},
+			want:    cpuData{PC: 0x8001, IME: true}, // TODO: ime should be enabled on the *next* cycle
+			wantbus: testBus{},
+		},
+
+		// TODO: illegal
+		// TODO: illegal
+
+		"CP d8 lt": {code: []byte{0xFE, 0x41}, pre: cpuData{A: 0x42, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x42, F: N | H, PC: 0x8002}, wantbus: testBus{}},
+		"CP d8 eq": {code: []byte{0xFE, 0x42}, pre: cpuData{A: 0x42, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x42, F: N | Z, PC: 0x8002}, wantbus: testBus{}},
+		"CP d8 gt": {code: []byte{0xFE, 0x43}, pre: cpuData{A: 0x42, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x42, F: N | CY, PC: 0x8002}, wantbus: testBus{}},
+
+		"RST 38H": {
+			code:    []byte{0xFF},
+			pre:     cpuData{SP: 0x0009, PC: 0x8000},
+			bus:     testBus{},
+			want:    cpuData{SP: 0x0007, PC: 0x0038},
+			wantbus: testBus{0x0008: 0x80, 0x0007: 0x01},
+		},
+	}
+
+	for mnemonic, tt := range tests {
+		testInst(mnemonic, tt, t)
+	}
+}
+
 func testInst(mnemonic string, tt cpuSingleTest, t *testing.T) {
 	t.Run(mnemonic, func(t *testing.T) {
 		c := &cpu{

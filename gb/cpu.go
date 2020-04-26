@@ -641,10 +641,14 @@ func (c *cpu) dec_sp(opcode uint8, b bus) {
 }
 
 // 0xF3 DI      1 4 0 - - - -
-func (c *cpu) di(opcode uint8, b bus) { panic("not implemented") }
+func (c *cpu) di(opcode uint8, b bus) {
+	c.IME = false
+}
 
 // 0xFB EI      1 4 0 - - - -
-func (c *cpu) ei(opcode uint8, b bus) { panic("not implemented") }
+func (c *cpu) ei(opcode uint8, b bus) {
+	c.IME = true // TODO: ime should be enabled on the *next* cycle
+}
 
 // 0x76 HALT    1 4 0 - - - -
 func (c *cpu) halt(opcode uint8, b bus) { panic("not implemented") }
@@ -1309,17 +1313,33 @@ func (c *cpu) ld_r_r(opcode uint8, b bus) {
 
 // 0xF8 LD HL,SP+r8     2 12 0 0 0 H C
 func (c *cpu) ld_rr_SP_r8(opcode uint8, b bus) {
-	v := uint16(b.read(c.SP))
-	c.SP++
+	r8 := b.read(c.PC)
+	c.PC++
 
-	result := c.SP + v
-	c.L = uint8(result & 0xFF)
-	c.H = uint8(result >> 8)
+	spl := uint8(c.SP & 0xFF)
+	sph := uint8(c.SP >> 8)
 
+	var f cpuFlags // H and CY are only affected by lsb
+	if r8&0x80 > 0 {
+		r8 := r8 ^ 0xFF + 1
+		spl = c.sub8(spl, r8)
+		f = c.F
+		f.flip(H | CY) // apparently we only want carries
+		sph = c.sbc8(sph, 0)
+	} else {
+		spl = c.add8(spl, r8)
+		f = c.F
+		sph = c.adc8(sph, 0)
+	}
+
+	c.F = f // restore lsb flags
 	c.F.set(Z, false)
 	c.F.set(N, false)
-	c.F.set(H, c.SP&0xF+v&0xF > 0xF)
-	c.F.set(CY, uint32(c.SP)+uint32(v) > 0xFFFF)
+
+	c.L = spl
+	c.H = sph
+
+	b.read(c.PC) // TODO: what actually gets read (or written)?
 }
 
 // 0x01 LD BC,d16       3 12 0 - - - -
