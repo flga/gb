@@ -1353,14 +1353,14 @@ func (c *cpu) ld_sp_rr(opcode uint8, b bus) {
 func (c *cpu) ldh_ia8_r(opcode uint8, b bus) {
 	a8 := b.read(c.PC)
 	c.PC++
-	b.write(uint16(a8), c.A)
+	b.write(0xFF00|uint16(a8), c.A)
 }
 
 // 0xF0 LDH A,(a8)      2 12 0 - - - -
 func (c *cpu) ldh_r_ia8(opcode uint8, b bus) {
 	a8 := b.read(c.PC)
 	c.PC++
-	c.A = b.read(uint16(a8))
+	c.A = b.read(0xFF00 | uint16(a8))
 }
 
 // 0x00 NOP     1 4 0 - - - -

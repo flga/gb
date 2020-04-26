@@ -3152,6 +3152,134 @@ func TestCpuOps0xD0_0xDF(t *testing.T) {
 	}
 }
 
+func TestCpuOps0xE0_0xEF(t *testing.T) {
+	tests := map[string]cpuSingleTest{
+		"LDH (a8),A": {
+			code:    []byte{0xE0, 0x42},
+			pre:     cpuData{A: 0x41, PC: 0x8000},
+			bus:     testBus{},
+			want:    cpuData{A: 0x41, PC: 0x8002},
+			wantbus: testBus{0xFF42: 0x41},
+		},
+
+		"POP HL": {
+			code:    []byte{0xE1},
+			pre:     cpuData{SP: 0x0000, PC: 0x8000},
+			bus:     testBus{0x0000: 0x01, 0x0001: 0x40},
+			want:    cpuData{H: 0x40, L: 0x01, SP: 0x0002, PC: 0x8001},
+			wantbus: testBus{0x0000: 0x01, 0x0001: 0x40},
+		},
+
+		"LD (C),A": {
+			code:    []byte{0xE2},
+			pre:     cpuData{A: 0x41, C: 0x42, PC: 0x8000},
+			bus:     testBus{},
+			want:    cpuData{A: 0x41, C: 0x42, PC: 0x8001},
+			wantbus: testBus{0xFF42: 0x41},
+		},
+
+		// TODO: illegal
+		// TODO: illegal
+
+		"PUSH HL": {
+			code:    []byte{0xE5},
+			pre:     cpuData{H: 0x40, L: 0x1, SP: 0x0009, PC: 0x8000},
+			bus:     testBus{},
+			want:    cpuData{H: 0x40, L: 0x1, SP: 0x0007, PC: 0x8001},
+			wantbus: testBus{0x0008: 0x40, 0x0007: 0x1},
+		},
+
+		"AND d8 00": {
+			code:    []byte{0xE6, 0x00},
+			pre:     cpuData{A: 0x00, PC: 0x8000},
+			bus:     testBus{},
+			want:    cpuData{A: 0x00, F: H | Z, PC: 0x8002},
+			wantbus: testBus{},
+		},
+		"AND d8 10": {
+			code:    []byte{0xE6, 0x00},
+			pre:     cpuData{A: 0x01, PC: 0x8000},
+			bus:     testBus{},
+			want:    cpuData{A: 0x00, F: H | Z, PC: 0x8002},
+			wantbus: testBus{},
+		},
+		"AND d8 01": {
+			code:    []byte{0xE6, 0x01},
+			pre:     cpuData{A: 0x00, PC: 0x8000},
+			bus:     testBus{},
+			want:    cpuData{A: 0x00, F: H | Z, PC: 0x8002},
+			wantbus: testBus{},
+		},
+		"AND d8 11": {
+			code:    []byte{0xE6, 0x01},
+			pre:     cpuData{A: 0x01, PC: 0x8000},
+			bus:     testBus{},
+			want:    cpuData{A: 0x01, F: H, PC: 0x8002},
+			wantbus: testBus{},
+		},
+
+		"RST 20H": {
+			code:    []byte{0xE7},
+			pre:     cpuData{SP: 0x0009, PC: 0x8000},
+			bus:     testBus{},
+			want:    cpuData{SP: 0x0007, PC: 0x0020},
+			wantbus: testBus{0x0008: 0x80, 0x0007: 0x01},
+		},
+
+		// "RET C": {
+		// 	code:    []byte{0xD8},
+		// 	pre:     cpuData{SP: 0x0000, PC: 0x8000},
+		// 	bus:     testBus{},
+		// 	want:    cpuData{SP: 0x0000, PC: 0x8001},
+		// 	wantbus: testBus{},
+		// },
+		// "RET C carry": {
+		// 	code:    []byte{0xD8},
+		// 	pre:     cpuData{F: CY, SP: 0x0000, PC: 0x8000},
+		// 	bus:     testBus{0x0000: 0x01, 0x0001: 0x40},
+		// 	want:    cpuData{F: CY, SP: 0x0002, PC: 0x4001},
+		// 	wantbus: testBus{0x0000: 0x01, 0x0001: 0x40},
+		// },
+
+		"JP (HL)": {
+			code:    []byte{0xE9},
+			pre:     cpuData{H: 0x40, L: 0x01, PC: 0x8000},
+			bus:     testBus{},
+			want:    cpuData{H: 0x40, L: 0x01, PC: 0x4001},
+			wantbus: testBus{},
+		},
+
+		"LD (a16),A": {
+			code:    []byte{0xEA, 0x01, 0x42},
+			pre:     cpuData{A: 0x41, PC: 0x8000},
+			bus:     testBus{},
+			want:    cpuData{A: 0x41, PC: 0x8003},
+			wantbus: testBus{0x4201: 0x41},
+		},
+
+		// TODO: illegal
+		// TODO: illegal
+		// TODO: illegal
+
+		"XOR d8 00": {code: []byte{0xEE, 0x00}, pre: cpuData{A: 0x00, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x00, F: Z, PC: 0x8002}, wantbus: testBus{}},
+		"XOR d8 10": {code: []byte{0xEE, 0x00}, pre: cpuData{A: 0x01, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x01, PC: 0x8002}, wantbus: testBus{}},
+		"XOR d8 01": {code: []byte{0xEE, 0x01}, pre: cpuData{A: 0x00, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x01, PC: 0x8002}, wantbus: testBus{}},
+		"XOR d8 11": {code: []byte{0xEE, 0x01}, pre: cpuData{A: 0x01, PC: 0x8000}, bus: testBus{}, want: cpuData{A: 0x00, F: Z, PC: 0x8002}, wantbus: testBus{}},
+
+		"RST 28H": {
+			code:    []byte{0xEF},
+			pre:     cpuData{SP: 0x0009, PC: 0x8000},
+			bus:     testBus{},
+			want:    cpuData{SP: 0x0007, PC: 0x0028},
+			wantbus: testBus{0x0008: 0x80, 0x0007: 0x01},
+		},
+	}
+
+	for mnemonic, tt := range tests {
+		testInst(mnemonic, tt, t)
+	}
+}
+
 func testInst(mnemonic string, tt cpuSingleTest, t *testing.T) {
 	t.Run(mnemonic, func(t *testing.T) {
 		c := &cpu{
