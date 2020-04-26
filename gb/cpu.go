@@ -1379,7 +1379,7 @@ func (c *cpu) ld_sp_d16(opcode uint8, b bus) {
 // 0xF9 LD SP,HL        1 8 0 - - - -
 func (c *cpu) ld_sp_rr(opcode uint8, b bus) {
 	c.SP = uint16(c.H)<<8 | uint16(c.L)
-	c.read(c.PC) // TODO: what actually gets read (or written)?
+	b.read(c.PC) // TODO: what actually gets read (or written)?
 }
 
 // 0xE0 LDH (a8),A      2 12 0 - - - -
@@ -1502,6 +1502,8 @@ func (c *cpu) push_rr(opcode uint8, b bus) {
 		rrlo = (*uint8)(&c.F)
 	}
 
+	b.read(c.SP) // TODO: what actually gets read (or written)?
+
 	c.SP--
 	b.write(c.SP, *rrhi)
 	c.SP--
@@ -1517,12 +1519,12 @@ func (c *cpu) ret(opcode uint8, b bus) {
 
 	c.PC = hi<<8 | lo
 
-	c.read(c.PC) // TODO: what actually gets read (or written)?
+	b.read(c.PC) // TODO: what actually gets read (or written)?
 }
 
 // 0xD0 RET NC  1 20 8 - - - -
 func (c *cpu) ret_NC(opcode uint8, b bus) {
-	c.read(c.PC) // TODO: what actually gets read (or written)?
+	b.read(c.PC) // TODO: what actually gets read (or written)?
 
 	if c.F.has(CY) {
 		return
@@ -1535,12 +1537,12 @@ func (c *cpu) ret_NC(opcode uint8, b bus) {
 
 	c.PC = hi<<8 | lo
 
-	c.read(c.PC) // TODO: what actually gets read (or written)?
+	b.read(c.PC) // TODO: what actually gets read (or written)?
 }
 
 // 0xC0 RET NZ  1 20 8 - - - -
 func (c *cpu) ret_NZ(opcode uint8, b bus) {
-	c.read(c.PC) // TODO: what actually gets read (or written)?
+	b.read(c.PC) // TODO: what actually gets read (or written)?
 
 	if c.F.has(Z) {
 		return
@@ -1553,12 +1555,12 @@ func (c *cpu) ret_NZ(opcode uint8, b bus) {
 
 	c.PC = hi<<8 | lo
 
-	c.read(c.PC) // TODO: what actually gets read (or written)?
+	b.read(c.PC) // TODO: what actually gets read (or written)?
 }
 
 // 0xC8 RET Z   1 20 8 - - - -
 func (c *cpu) ret_Z(opcode uint8, b bus) {
-	c.read(c.PC) // TODO: what actually gets read (or written)?
+	b.read(c.PC) // TODO: what actually gets read (or written)?
 
 	if !c.F.has(Z) {
 		return
@@ -1571,12 +1573,12 @@ func (c *cpu) ret_Z(opcode uint8, b bus) {
 
 	c.PC = hi<<8 | lo
 
-	c.read(c.PC) // TODO: what actually gets read (or written)? }
+	b.read(c.PC) // TODO: what actually gets read (or written)? }
 }
 
 // 0xD8 RET C   1 20 8 - - - -
 func (c *cpu) ret_r(opcode uint8, b bus) {
-	c.read(c.PC) // TODO: what actually gets read (or written)?
+	b.read(c.PC) // TODO: what actually gets read (or written)?
 
 	if !c.F.has(CY) {
 		return
@@ -1589,7 +1591,7 @@ func (c *cpu) ret_r(opcode uint8, b bus) {
 
 	c.PC = hi<<8 | lo
 
-	c.read(c.PC) // TODO: what actually gets read (or written)?
+	b.read(c.PC) // TODO: what actually gets read (or written)?
 }
 
 // 0xD9 RETI    1 16 0 - - - -
@@ -1602,7 +1604,7 @@ func (c *cpu) reti(opcode uint8, b bus) {
 	c.PC = hi<<8 | lo
 	c.IME = true
 
-	c.read(c.PC) // TODO: what actually gets read (or written)?
+	b.read(c.PC) // TODO: what actually gets read (or written)?
 }
 
 // 0x17 RLA     1 4 0 0 0 0 C
@@ -1688,7 +1690,7 @@ func (c *cpu) rst(opcode uint8, b bus) {
 		addr = 0x38
 	}
 
-	_ = c.read(c.SP)
+	_ = b.read(c.SP)
 
 	c.SP--
 	b.write(c.SP, uint8(c.PC>>8))
