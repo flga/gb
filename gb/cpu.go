@@ -1,5 +1,7 @@
 package gb
 
+import "fmt"
+
 type op func(opcode uint8, b bus)
 
 const (
@@ -8,6 +10,14 @@ const (
 	vectorSerial uint16 = 0x50
 	vectorTimer  uint16 = 0x58
 	vectorHTL    uint16 = 0x60
+)
+
+type cpuState uint8
+
+const (
+	run cpuState = iota
+	halt
+	interruptDispatch
 )
 
 type cpuFlags uint8
@@ -66,7 +76,8 @@ type cpu struct {
 	SP   uint16
 	PC   uint16
 
-	IME bool
+	IME   bool
+	state cpuState
 
 	table [256]op
 }
@@ -93,13 +104,16 @@ func (c *cpu) init() {
 }
 
 func (c *cpu) clock(b bus) {
-	// if len(c.opstack) == 0 {
-	// 	return
-	// }
-
-	// head := len(c.opstack) - 1
-	// c.opstack[head](b)
-	// c.opstack = c.opstack[:head]
+	switch c.state {
+	case run:
+		op := b.read(c.PC)
+		c.PC++
+		c.table[op](op, b)
+	case halt:
+		panic("not implemented")
+	case interruptDispatch:
+		panic("not implemented")
+	}
 }
 
 func (c *cpu) read(addr uint16) uint8 {
@@ -115,6 +129,10 @@ func (c *cpu) executeInst(b bus) {
 	c.PC++
 
 	c.table[op](op, b)
+}
+
+func (c *cpu) cancelInterruptEffects() {
+	fmt.Println("??")
 }
 
 func (c *cpu) adc8(a, b uint8) uint8 {
@@ -643,6 +661,7 @@ func (c *cpu) dec_sp(opcode uint8, b bus) {
 // 0xF3 DI      1 4 0 - - - -
 func (c *cpu) di(opcode uint8, b bus) {
 	c.IME = false
+	c.cancelInterruptEffects()
 }
 
 // 0xFB EI      1 4 0 - - - -
@@ -651,7 +670,9 @@ func (c *cpu) ei(opcode uint8, b bus) {
 }
 
 // 0x76 HALT    1 4 0 - - - -
-func (c *cpu) halt(opcode uint8, b bus) { panic("not implemented") }
+func (c *cpu) halt(opcode uint8, b bus) {
+	c.state = halt
+}
 
 // 0x34 INC (HL)        1 12 0 Z 0 H -
 func (c *cpu) inc_irr(opcode uint8, b bus) {
@@ -1755,7 +1776,9 @@ func (c *cpu) scf(opcode uint8, b bus) {
 }
 
 // 0x10 STOP 0  2 4 0 - - - -
-func (c *cpu) stop(opcode uint8, b bus) { panic("not implemented") }
+func (c *cpu) stop(opcode uint8, b bus) {
+	panic("stop")
+}
 
 // 0xD6 SUB d8  2 8 0 Z 1 H C
 func (c *cpu) sub_d8(opcode uint8, b bus) {

@@ -3,6 +3,7 @@ package gb
 import (
 	"fmt"
 	"reflect"
+	"runtime"
 	"testing"
 )
 
@@ -55,6 +56,7 @@ func (cd cpuData) String() string {
 }
 
 type cpuSingleTest struct {
+	debug      bool
 	code       []byte
 	pre        cpuData
 	bus        testBus
@@ -3198,10 +3200,10 @@ func TestCpuOps0xC0_0xCF(t *testing.T) {
 
 		"RST 00H": {
 			code:       []byte{0xC7},
-			pre:        cpuData{SP: 0x0009, PC: 0x8000},
+			pre:        cpuData{SP: 0x00F9, PC: 0x8000},
 			bus:        testBus{},
-			want:       cpuData{SP: 0x0007, PC: 0x0000},
-			wantbus:    testBus{0x0008: 0x80, 0x0007: 0x01},
+			want:       cpuData{SP: 0x00F7, PC: 0x0000},
+			wantbus:    testBus{0x00F8: 0x80, 0x00F7: 0x01},
 			wantCycles: 4,
 		},
 
@@ -3317,10 +3319,10 @@ func TestCpuOps0xC0_0xCF(t *testing.T) {
 
 		"RST 08H": {
 			code:       []byte{0xCF},
-			pre:        cpuData{SP: 0x0009, PC: 0x8000},
+			pre:        cpuData{SP: 0x00F9, PC: 0x8000},
 			bus:        testBus{},
-			want:       cpuData{SP: 0x0007, PC: 0x0008},
-			wantbus:    testBus{0x0008: 0x80, 0x0007: 0x01},
+			want:       cpuData{SP: 0x00F7, PC: 0x0008},
+			wantbus:    testBus{0x00F8: 0x80, 0x00F7: 0x01},
 			wantCycles: 4,
 		},
 	}
@@ -3444,10 +3446,10 @@ func TestCpuOps0xD0_0xDF(t *testing.T) {
 
 		"RST 10H": {
 			code:       []byte{0xD7},
-			pre:        cpuData{SP: 0x0009, PC: 0x8000},
+			pre:        cpuData{SP: 0x00F9, PC: 0x8000},
 			bus:        testBus{},
-			want:       cpuData{SP: 0x0007, PC: 0x0010},
-			wantbus:    testBus{0x0008: 0x80, 0x0007: 0x01},
+			want:       cpuData{SP: 0x00F7, PC: 0x0010},
+			wantbus:    testBus{0x00F8: 0x80, 0x00F7: 0x01},
 			wantCycles: 4,
 		},
 
@@ -3548,10 +3550,10 @@ func TestCpuOps0xD0_0xDF(t *testing.T) {
 
 		"RST 18H": {
 			code:       []byte{0xDF},
-			pre:        cpuData{SP: 0x0009, PC: 0x8000},
+			pre:        cpuData{SP: 0x00F9, PC: 0x8000},
 			bus:        testBus{},
-			want:       cpuData{SP: 0x0007, PC: 0x0018},
-			wantbus:    testBus{0x0008: 0x80, 0x0007: 0x01},
+			want:       cpuData{SP: 0x00F7, PC: 0x0018},
+			wantbus:    testBus{0x00F8: 0x80, 0x00F7: 0x01},
 			wantCycles: 4,
 		},
 	}
@@ -3609,10 +3611,10 @@ func TestCpuOps0xE0_0xEF(t *testing.T) {
 
 		"RST 20H": {
 			code:       []byte{0xE7},
-			pre:        cpuData{SP: 0x0009, PC: 0x8000},
+			pre:        cpuData{SP: 0x00F9, PC: 0x8000},
 			bus:        testBus{},
-			want:       cpuData{SP: 0x0007, PC: 0x0020},
-			wantbus:    testBus{0x0008: 0x80, 0x0007: 0x01},
+			want:       cpuData{SP: 0x00F7, PC: 0x0020},
+			wantbus:    testBus{0x00F8: 0x80, 0x00F7: 0x01},
 			wantCycles: 4,
 		},
 
@@ -3718,10 +3720,10 @@ func TestCpuOps0xE0_0xEF(t *testing.T) {
 
 		"RST 28H": {
 			code:       []byte{0xEF},
-			pre:        cpuData{SP: 0x0009, PC: 0x8000},
+			pre:        cpuData{SP: 0x00F9, PC: 0x8000},
 			bus:        testBus{},
-			want:       cpuData{SP: 0x0007, PC: 0x0028},
-			wantbus:    testBus{0x0008: 0x80, 0x0007: 0x01},
+			want:       cpuData{SP: 0x00F7, PC: 0x0028},
+			wantbus:    testBus{0x00F8: 0x80, 0x00F7: 0x01},
 			wantCycles: 4,
 		},
 	}
@@ -3786,10 +3788,10 @@ func TestCpuOps0xF0_0xFF(t *testing.T) {
 
 		"RST 30H": {
 			code:       []byte{0xF7},
-			pre:        cpuData{SP: 0x0009, PC: 0x8000},
+			pre:        cpuData{SP: 0x00F9, PC: 0x8000},
 			bus:        testBus{},
-			want:       cpuData{SP: 0x0007, PC: 0x0030},
-			wantbus:    testBus{0x0008: 0x80, 0x0007: 0x01},
+			want:       cpuData{SP: 0x00F7, PC: 0x0030},
+			wantbus:    testBus{0x00F8: 0x80, 0x00F7: 0x01},
 			wantCycles: 4,
 		},
 
@@ -3902,10 +3904,10 @@ func TestCpuOps0xF0_0xFF(t *testing.T) {
 
 		"RST 38H": {
 			code:       []byte{0xFF},
-			pre:        cpuData{SP: 0x0009, PC: 0x8000},
+			pre:        cpuData{SP: 0x00F9, PC: 0x8000},
 			bus:        testBus{},
-			want:       cpuData{SP: 0x0007, PC: 0x0038},
-			wantbus:    testBus{0x0008: 0x80, 0x0007: 0x01},
+			want:       cpuData{SP: 0x00F7, PC: 0x0038},
+			wantbus:    testBus{0x00F8: 0x80, 0x00F7: 0x01},
 			wantCycles: 4,
 		},
 	}
@@ -3931,12 +3933,22 @@ func testInst(mnemonic string, tt cpuSingleTest, t *testing.T) {
 		}
 		c.init()
 
+		if tt.debug {
+			runtime.Breakpoint()
+		}
+
 		// "load rom"
 		for i, op := range tt.code {
 			tt.bus[tt.pre.PC+uint16(i)] = op
 		}
 
-		c.executeInst(tt.bus)
+		// runs the cpu until PC points to void
+		for {
+			c.clock(tt.bus)
+			if _, ok := tt.bus[c.PC]; !ok {
+				break
+			}
+		}
 
 		// "unload rom"
 		for i := range tt.code {
