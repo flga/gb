@@ -300,13 +300,26 @@ func (c *cpu) add_sp_r8(opcode uint8, b bus) {
 	r8 := b.read(c.PC)
 	c.PC++
 
-	v := uint16(r8)
-	c.SP += v
+	spl := uint8(c.SP & 0xFF)
+	sph := uint8(c.SP >> 8)
 
+	var f cpuFlags // H and CY are only affected by lsb
+	if r8&0x80 > 0 {
+		r8 := r8 ^ 0xFF + 1
+		spl = c.sub8(spl, r8)
+		f = c.F
+		f.flip(H | CY) // apparently we only want carries
+		sph = c.sbc8(sph, 0)
+	} else {
+		spl = c.add8(spl, r8)
+		f = c.F
+		sph = c.adc8(sph, 0)
+	}
+
+	c.SP = uint16(sph)<<8 | uint16(spl)
+	c.F = f // restore lsb flags
 	c.F.set(Z, false)
 	c.F.set(N, false)
-	c.F.set(H, c.SP&0xFFF+v&0xFFF > 0xFFF)
-	c.F.set(CY, uint32(c.SP)+uint32(v) > 0xFFFF)
 
 	b.read(c.PC) // TODO: what actually gets read (or written)?
 	b.read(c.PC) // TODO: what actually gets read (or written)?
