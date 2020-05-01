@@ -12,10 +12,21 @@ const (
 	vectorHTL    uint16 = 0x60
 )
 
+type interrupt uint8
+
+const (
+	intVBlank interrupt = 1 << iota
+	intLCDc
+	intTimerOverflow
+	intSerial
+	intHTL
+)
+
 type cpuState uint8
 
 const (
 	run cpuState = iota
+	stop
 	halt
 	interruptDispatch
 )
@@ -76,7 +87,11 @@ type cpu struct {
 	SP   uint16
 	PC   uint16
 
-	IME   bool
+	scheduleIME bool
+	IME         bool
+	IE          interrupt // TODO: move these out
+	IF          interrupt // TODO: move these out
+
 	state cpuState
 
 	table [256]op
@@ -107,21 +122,82 @@ func (c *cpu) clock(b bus) {
 	switch c.state {
 	case run:
 		op := b.read(c.PC)
+		if c.scheduleIME {
+			c.scheduleIME = false
+			c.IME = true
+		}
 		c.PC++
 		c.table[op](op, b)
+
+		if c.IF&c.IE > 0 && c.IME {
+			c.state = interruptDispatch
+		}
+	case interruptDispatch:
+		// TODO: we might be missing a cycle here (if the 1st cycle is not the PC fetch)
+		var vector uint16
+
+		c.IME = false
+
+		c.SP--
+		b.write(c.SP, uint8(c.PC>>8))
+		c.SP--
+		b.write(c.SP, uint8(c.PC&0xFF))
+
+		_ = b.read(0xFF0F) // TODO: we need this dummy IF read to trigger clock, IF should not be on the cpu
+		_ = b.read(0xFFFF) // TODO: we need this dummy IE read to trigger clock, IE should not be on the cpu
+
+		intType := c.IF & c.IE
+		if intType == 0 {
+			panic("no ints available")
+		}
+		switch {
+		case intType&intVBlank > 0:
+			vector = vectorVBlank
+			c.IF &^= intVBlank
+		case intType&intLCDc > 0:
+			vector = vectorLCDc
+			c.IF &^= intLCDc
+		case intType&intTimerOverflow > 0:
+			vector = vectorTimer
+			c.IF &^= intTimerOverflow
+		case intType&intSerial > 0:
+			vector = vectorSerial
+			c.IF &^= intSerial
+		case intType&intHTL > 0:
+			vector = vectorHTL
+			c.IF &^= intHTL
+		}
+
+		c.PC = vector
+		c.state = run
+
 	case halt:
 		panic("not implemented")
-	case interruptDispatch:
+	case stop:
 		panic("not implemented")
 	}
 }
 
 func (c *cpu) read(addr uint16) uint8 {
-	return 0 // todo
+	switch addr {
+	case 0xFFFF:
+		return uint8(c.IE)
+	case 0xFF0F:
+		return uint8(c.IF)
+	}
+
+	panic("unhandled cpu read")
 }
 
 func (c *cpu) write(addr uint16, v uint8) {
-	// todo
+	switch addr {
+	case 0xFFFF:
+		c.IE = interrupt(v)
+	case 0xFF0F:
+		c.IF = interrupt(v)
+	}
+
+	panic("unhandled cpu write")
 }
 
 func (c *cpu) executeInst(b bus) {
@@ -666,7 +742,7 @@ func (c *cpu) di(opcode uint8, b bus) {
 
 // 0xFB EI      1 4 0 - - - -
 func (c *cpu) ei(opcode uint8, b bus) {
-	c.IME = true // TODO: ime should be enabled on the *next* cycle
+	c.scheduleIME = true
 }
 
 // 0x76 HALT    1 4 0 - - - -

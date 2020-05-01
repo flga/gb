@@ -129,6 +129,11 @@ func (b *mmu) read(addr uint16) uint8 {
 	// FF80		FFFE	High RAM (HRAM)
 	// FFFF		FFFF	Interrupts Enable Register (IE)
 
+	switch addr {
+	case 0xFF0F, 0xFFFF:
+		return b.cpu.read(addr)
+	}
+
 	if addr < 0x4000 {
 		return b.cartridge.read(addr)
 	}
@@ -183,10 +188,6 @@ func (b *mmu) read(addr uint16) uint8 {
 		return b.hram.read(addr)
 	}
 
-	if addr == 0xFFFF {
-		return b.cpu.read(addr)
-	}
-
 	panic(fmt.Sprintf("unmapped read at 0%X", addr))
 	return 0
 }
@@ -207,6 +208,12 @@ func (b *mmu) write(addr uint16, v uint8) {
 	// FF00		FF7F	I/O Registers
 	// FF80		FFFE	High RAM (HRAM)
 	// FFFF		FFFF	Interrupts Enable Register (IE)
+
+	switch addr {
+	case 0xFF0F, 0xFFFF:
+		b.cpu.write(addr, v)
+		return
+	}
 
 	if addr < 0x4000 {
 		b.cartridge.write(addr, v)

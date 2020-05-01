@@ -37,7 +37,8 @@ type cpuData struct {
 	SP   uint16
 	PC   uint16
 
-	IME bool
+	scheduleIME bool
+	IME         bool
 }
 
 func (cd cpuData) String() string {
@@ -3890,7 +3891,7 @@ func TestCpuOps0xF0_0xFF(t *testing.T) {
 			code:       []byte{0xFB},
 			pre:        cpuData{PC: 0x8000},
 			bus:        testBus{},
-			want:       cpuData{PC: 0x8001, IME: true}, // TODO: ime should be enabled on the *next* cycle
+			want:       cpuData{PC: 0x8001, scheduleIME: true},
 			wantbus:    testBus{},
 			wantCycles: 1,
 		},
@@ -3956,17 +3957,18 @@ func testInst(mnemonic string, tt cpuSingleTest, t *testing.T) {
 		}
 
 		got := cpuData{
-			A:   c.A,
-			F:   c.F,
-			B:   c.B,
-			C:   c.C,
-			D:   c.D,
-			E:   c.E,
-			H:   c.H,
-			L:   c.L,
-			SP:  c.SP,
-			PC:  c.PC,
-			IME: c.IME,
+			A:           c.A,
+			F:           c.F,
+			B:           c.B,
+			C:           c.C,
+			D:           c.D,
+			E:           c.E,
+			H:           c.H,
+			L:           c.L,
+			SP:          c.SP,
+			PC:          c.PC,
+			IME:         c.IME,
+			scheduleIME: c.scheduleIME,
 		}
 
 		if got != tt.want {
@@ -3984,6 +3986,15 @@ func testInst(mnemonic string, tt cpuSingleTest, t *testing.T) {
 
 		if !reflect.DeepEqual(tt.bus, tt.wantbus) {
 			t.Errorf("cpu.executeInst(0x%02X) bus = %v, want %v", tt.code[0], tt.bus, tt.wantbus)
+		}
+
+		// if IME scheduled, run an extra "cycle"
+		// in this case it will be a NOP so it's just 1 MC, but we're effectively running a whole instr
+		if tt.want.scheduleIME {
+			c.clock(tt.bus)
+			if !c.IME {
+				t.Errorf("cpu.executeInst(0x%02X) IME = %v, want %v", tt.code[0], c.IME, true)
+			}
 		}
 	})
 }
