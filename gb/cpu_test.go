@@ -8,24 +8,18 @@ import (
 )
 
 // I know this is is ugly but map literals are so nice for testing
-const testBusCycleAddr uint16 = 0xFFFF
+const testBusCycleAddr uint32 = 0xFFFFF
 
-type testBus map[uint16]byte
+type testBus map[uint32]byte
 
 func (b testBus) read(addr uint16) uint8 {
-	if addr == testBusCycleAddr {
-		panic("testBusCycleAddr is reserved")
-	}
 	b[testBusCycleAddr]++
-	return b[addr]
+	return b[uint32(addr)]
 }
 
 func (b testBus) write(addr uint16, v uint8) {
-	if addr == testBusCycleAddr {
-		panic("testBusCycleAddr is reserved")
-	}
 	b[testBusCycleAddr]++
-	b[addr] = v
+	b[uint32(addr)] = v
 }
 
 type cpuData struct {
@@ -3940,20 +3934,20 @@ func testInst(mnemonic string, tt cpuSingleTest, t *testing.T) {
 
 		// "load rom"
 		for i, op := range tt.code {
-			tt.bus[tt.pre.PC+uint16(i)] = op
+			tt.bus[uint32(tt.pre.PC)+uint32(i)] = op
 		}
 
 		// runs the cpu until PC points to void
 		for {
 			c.clock(tt.bus)
-			if _, ok := tt.bus[c.PC]; !ok {
+			if _, ok := tt.bus[uint32(c.PC)]; !ok {
 				break
 			}
 		}
 
 		// "unload rom"
 		for i := range tt.code {
-			delete(tt.bus, tt.pre.PC+uint16(i))
+			delete(tt.bus, uint32(tt.pre.PC)+uint32(i))
 		}
 
 		got := cpuData{
@@ -3995,6 +3989,285 @@ func testInst(mnemonic string, tt cpuSingleTest, t *testing.T) {
 			if !c.IME {
 				t.Errorf("cpu.executeInst(0x%02X) IME = %v, want %v", tt.code[0], c.IME, true)
 			}
+		}
+	})
+}
+
+func TestHalt(t *testing.T) {
+	t.Run("ime set", func(t *testing.T) {
+		bus := testBus{
+			0x0040: 0xD9, // RETI
+			0x8000: 0x76, // HALT
+		}
+		c := &cpu{
+			IME: true,
+			PC:  0x8000,
+			SP:  0x80,
+		}
+
+		assertPreInterrupt := func() {
+			if got, want := c.IME, true; got != want {
+				t.Fatalf("cpu.executeInst(0x76) IME = %v, want %v", got, want)
+			}
+			if got, want := c.PC, uint16(0x8001); got != want {
+				t.Fatalf("cpu.executeInst(0x76) PC = %v, want %v", got, want)
+			}
+			if got, want := c.SP, uint16(0x80); got != want {
+				t.Fatalf("cpu.executeInst(0x76) SP = %v, want %v", got, want)
+			}
+		}
+
+		c.init()
+
+		c.clock(bus) // HALT
+		assertPreInterrupt()
+
+		c.clock(bus) // spin
+		assertPreInterrupt()
+
+		c.clock(bus) // spin
+		assertPreInterrupt()
+
+		c.IE |= intVBlank
+		c.IF |= intVBlank
+
+		c.clock(bus) // handle int req
+
+		if got, want := c.state, run; got != want {
+			t.Fatalf("cpu.executeInst(0x76) state = %v, want %v", got, want)
+		}
+		if got, want := c.IME, false; got != want {
+			t.Fatalf("cpu.executeInst(0x76) IME = %v, want %v", got, want)
+		}
+		if got, want := c.SP, uint16(0x007E); got != want {
+			t.Fatalf("cpu.executeInst(0x76) SP = %v, want %v", got, want)
+		}
+		if got, want := c.PC, uint16(0x0040); got != want {
+			t.Fatalf("cpu.executeInst(0x76) PC = %v, want %v", got, want)
+		}
+		wantBus := testBus{
+			0x0040:           0xD9,                  // RETI
+			0x007F:           0x80,                  // stack PCH
+			0x007E:           0x01,                  // stack PCL
+			0x8000:           0x76,                  // HALT
+			testBusCycleAddr: bus[testBusCycleAddr], // TODO
+		}
+		if !reflect.DeepEqual(bus, wantBus) {
+			t.Fatalf("cpu.executeInst(0x76) bus = %v, want %v", bus, wantBus)
+		}
+
+		c.clock(bus) // RETI
+		if got, want := c.state, run; got != want {
+			t.Fatalf("cpu.executeInst(0x76) state = %v, want %v", got, want)
+		}
+		if got, want := c.IME, true; got != want {
+			t.Fatalf("cpu.executeInst(0x76) IME = %v, want %v", got, want)
+		}
+		if got, want := c.SP, uint16(0x0080); got != want {
+			t.Fatalf("cpu.executeInst(0x76) SP = %v, want %v", got, want)
+		}
+		if got, want := c.PC, uint16(0x8001); got != want {
+			t.Fatalf("cpu.executeInst(0x76) PC = %v, want %v", got, want)
+		}
+		wantBus = testBus{
+			0x0040:           0xD9,                  // RETI
+			0x007F:           0x80,                  // stack PCH
+			0x007E:           0x01,                  // stack PCL
+			0x8000:           0x76,                  // HALT
+			testBusCycleAddr: bus[testBusCycleAddr], // TODO
+		}
+		if !reflect.DeepEqual(bus, wantBus) {
+			t.Fatalf("cpu.executeInst(0x76) bus = %v, want %v", bus, wantBus)
+		}
+	})
+
+	t.Run("ime NOT set, none pending", func(t *testing.T) {
+		bus := testBus{
+			0x0040: 0xD9,               // RETI
+			0x8000: 0x76,               // HALT
+			0x8001: 0x3e, 0x8002: 0x42, // LD A,0x42
+		}
+		c := &cpu{
+			IME: false,
+			PC:  0x8000,
+			SP:  0x80,
+		}
+
+		assertPreInterrupt := func() {
+			if got, want := c.IME, false; got != want {
+				t.Fatalf("cpu.executeInst(0x76) IME = %v, want %v", got, want)
+			}
+			if got, want := c.PC, uint16(0x8001); got != want {
+				t.Fatalf("cpu.executeInst(0x76) PC = %v, want %v", got, want)
+			}
+			if got, want := c.SP, uint16(0x80); got != want {
+				t.Fatalf("cpu.executeInst(0x76) SP = %v, want %v", got, want)
+			}
+		}
+
+		c.init()
+
+		c.clock(bus) // HALT
+		assertPreInterrupt()
+
+		c.clock(bus) // spin
+		assertPreInterrupt()
+
+		c.clock(bus) // spin
+		assertPreInterrupt()
+
+		c.IE |= intVBlank
+		c.IF |= intVBlank
+
+		c.clock(bus) // handle int req, but ignore it
+
+		if got, want := c.state, run; got != want {
+			t.Fatalf("cpu.executeInst(0x76) state = %v, want %v", got, want)
+		}
+		if got, want := c.IME, false; got != want {
+			t.Fatalf("cpu.executeInst(0x76) IME = %v, want %v", got, want)
+		}
+		if got, want := c.SP, uint16(0x007E); got != want {
+			t.Fatalf("cpu.executeInst(0x76) SP = 0x%04X, want 0x%04X", got, want)
+		}
+		if got, want := c.PC, uint16(0x8001); got != want {
+			t.Fatalf("cpu.executeInst(0x76) PC = 0x%04X, want 0x%04X", got, want)
+		}
+		wantBus := testBus{
+			0x0040: 0xD9,               // RETI
+			0x007F: 0x80,               // stack PCH
+			0x007E: 0x01,               // stack PCL
+			0x8000: 0x76,               // HALT
+			0x8001: 0x3e, 0x8002: 0x42, // LD A,0x42
+			testBusCycleAddr: bus[testBusCycleAddr], // TODO
+		}
+		if !reflect.DeepEqual(bus, wantBus) {
+			t.Fatalf("cpu.executeInst(0x76) bus = %v, want %v", bus, wantBus)
+		}
+
+		c.clock(bus) // LD A,0x42
+		if got, want := c.state, run; got != want {
+			t.Fatalf("cpu.executeInst(0x76) state = %v, want %v", got, want)
+		}
+		if got, want := c.IME, false; got != want {
+			t.Fatalf("cpu.executeInst(0x76) IME = %v, want %v", got, want)
+		}
+		if got, want := c.SP, uint16(0x007E); got != want {
+			t.Fatalf("cpu.executeInst(0x76) SP = 0x%04X, want 0x%04X", got, want)
+		}
+		if got, want := c.PC, uint16(0x8003); got != want {
+			t.Fatalf("cpu.executeInst(0x76) PC = 0x%04X, want 0x%04X", got, want)
+		}
+		if got, want := c.A, uint8(0x42); got != want {
+			t.Fatalf("cpu.executeInst(0x76) A = 0x%02X, want 0x%02X", got, want)
+		}
+		wantBus = testBus{
+			0x0040: 0xD9,               // RETI
+			0x007F: 0x80,               // stack PCH
+			0x007E: 0x01,               // stack PCL
+			0x8000: 0x76,               // HALT
+			0x8001: 0x3e, 0x8002: 0x42, // LD A,0x42
+			testBusCycleAddr: bus[testBusCycleAddr], // TODO
+		}
+		if !reflect.DeepEqual(bus, wantBus) {
+			t.Fatalf("cpu.executeInst(0x76) bus = %v, want %v", bus, wantBus)
+		}
+	})
+
+	t.Run("ime NOT set, some pending", func(t *testing.T) {
+		bus := testBus{
+			0x0040: 0xD9,               // RETI
+			0x8000: 0x76,               // HALT
+			0x8001: 0x3E, 0x8002: 0x3C, // LD A,0x3C (should store 0x3E in A due to hw bug) and do INC A after
+		}
+		c := &cpu{
+			IME: false,
+			PC:  0x8000,
+			SP:  0x80,
+		}
+
+		c.init()
+
+		c.IE |= intVBlank
+		c.IF |= intVBlank
+
+		c.clock(bus) // HALT
+
+		if got, want := c.state, run; got != want {
+			t.Fatalf("cpu.executeInst(0x76) state = %v, want %v", got, want)
+		}
+		if got, want := c.IME, false; got != want {
+			t.Fatalf("cpu.executeInst(0x76) IME = %v, want %v", got, want)
+		}
+		if got, want := c.skipPCIncBug, true; got != want {
+			t.Fatalf("cpu.executeInst(0x76) skipPCIncBug = %v, want %v", got, want)
+		}
+		if got, want := c.SP, uint16(0x0080); got != want {
+			t.Fatalf("cpu.executeInst(0x76) SP = 0x%04X, want 0x%04X", got, want)
+		}
+		if got, want := c.PC, uint16(0x8001); got != want {
+			t.Fatalf("cpu.executeInst(0x76) PC = 0x%04X, want 0x%04X", got, want)
+		}
+		wantBus := testBus{
+			0x0040: 0xD9,               // RETI
+			0x8000: 0x76,               // HALT
+			0x8001: 0x3E, 0x8002: 0x3C, // LD A,0x3C (should store 0x3E in A due to hw bug) and do INC A after
+			testBusCycleAddr: bus[testBusCycleAddr], // TODO
+		}
+		if !reflect.DeepEqual(bus, wantBus) {
+			t.Fatalf("cpu.executeInst(0x76) bus = %v, want %v", bus, wantBus)
+		}
+
+		c.clock(bus) // LD A,0x3C (should store 0x3E in A due to hw bug) and do INC A after
+		if got, want := c.state, run; got != want {
+			t.Fatalf("cpu.executeInst(0x76) state = %v, want %v", got, want)
+		}
+		if got, want := c.IME, false; got != want {
+			t.Fatalf("cpu.executeInst(0x76) IME = %v, want %v", got, want)
+		}
+		if got, want := c.SP, uint16(0x0080); got != want {
+			t.Fatalf("cpu.executeInst(0x76) SP = 0x%04X, want 0x%04X", got, want)
+		}
+		if got, want := c.PC, uint16(0x8002); got != want {
+			t.Fatalf("cpu.executeInst(0x76) PC = 0x%04X, want 0x%04X", got, want)
+		}
+		if got, want := c.A, uint8(0x3E); got != want {
+			t.Fatalf("cpu.executeInst(0x76) A = 0x%02X, want 0x%02X", got, want)
+		}
+		wantBus = testBus{
+			0x0040: 0xD9,               // RETI
+			0x8000: 0x76,               // HALT
+			0x8001: 0x3e, 0x8002: 0x3C, // LD A,0x3C (should store 0x3E in A due to hw bug) and do INC A after
+			testBusCycleAddr: bus[testBusCycleAddr], // TODO
+		}
+		if !reflect.DeepEqual(bus, wantBus) {
+			t.Fatalf("cpu.executeInst(0x76) bus = %v, want %v", bus, wantBus)
+		}
+
+		c.clock(bus) // "INC A"
+		if got, want := c.state, run; got != want {
+			t.Fatalf("cpu.executeInst(0x76) state = %v, want %v", got, want)
+		}
+		if got, want := c.IME, false; got != want {
+			t.Fatalf("cpu.executeInst(0x76) IME = %v, want %v", got, want)
+		}
+		if got, want := c.SP, uint16(0x0080); got != want {
+			t.Fatalf("cpu.executeInst(0x76) SP = 0x%04X, want 0x%04X", got, want)
+		}
+		if got, want := c.PC, uint16(0x8003); got != want {
+			t.Fatalf("cpu.executeInst(0x76) PC = 0x%04X, want 0x%04X", got, want)
+		}
+		if got, want := c.A, uint8(0x3F); got != want {
+			t.Fatalf("cpu.executeInst(0x76) A = 0x%02X, want 0x%02X", got, want)
+		}
+		wantBus = testBus{
+			0x0040: 0xD9,               // RETI
+			0x8000: 0x76,               // HALT
+			0x8001: 0x3e, 0x8002: 0x3C, // LD A,0x3C (should store 0x3E in A due to hw bug) and do INC A after
+			testBusCycleAddr: bus[testBusCycleAddr], // TODO
+		}
+		if !reflect.DeepEqual(bus, wantBus) {
+			t.Fatalf("cpu.executeInst(0x76) bus = %v, want %v", bus, wantBus)
 		}
 	})
 }

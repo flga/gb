@@ -87,10 +87,11 @@ type cpu struct {
 	SP   uint16
 	PC   uint16
 
-	scheduleIME bool
-	IME         bool
-	IE          interrupt // TODO: move these out
-	IF          interrupt // TODO: move these out
+	skipPCIncBug bool
+	scheduleIME  bool
+	IME          bool
+	IE           interrupt // TODO: move these out
+	IF           interrupt // TODO: move these out
 
 	state cpuState
 
@@ -126,7 +127,11 @@ func (c *cpu) clock(b bus) {
 			c.scheduleIME = false
 			c.IME = true
 		}
-		c.PC++
+		if c.skipPCIncBug {
+			c.skipPCIncBug = false
+		} else {
+			c.PC++
+		}
 		c.table[op](op, b)
 
 		if c.IF&c.IE > 0 && c.IME {
@@ -172,7 +177,29 @@ func (c *cpu) clock(b bus) {
 		c.state = run
 
 	case halt:
-		panic("not implemented")
+		switch c.IME {
+		case true:
+			if c.IF&c.IE > 0 {
+				c.state = interruptDispatch
+				c.clock(b)
+			}
+
+		case false:
+			if c.IF&c.IE > 0 {
+				c.IME = false
+
+				c.SP--
+				b.write(c.SP, uint8(c.PC>>8))
+				c.SP--
+				b.write(c.SP, uint8(c.PC&0xFF))
+
+				_ = b.read(0xFF0F) // TODO: we need this dummy IF read to trigger clock, IF should not be on the cpu
+				_ = b.read(0xFFFF) // TODO: we need this dummy IE read to trigger clock, IE should not be on the cpu
+
+				c.state = run
+			}
+		}
+
 	case stop:
 		panic("not implemented")
 	}
@@ -747,7 +774,21 @@ func (c *cpu) ei(opcode uint8, b bus) {
 
 // 0x76 HALT    1 4 0 - - - -
 func (c *cpu) halt(opcode uint8, b bus) {
-	c.state = halt
+	// IME set
+	if c.IME {
+		c.state = halt
+		return
+	}
+
+	// Some pending
+	if c.IE&c.IF > 0 {
+		c.skipPCIncBug = true
+		c.state = run
+		return
+	} else {
+		c.state = halt
+		return
+	}
 }
 
 // 0x34 INC (HL)        1 12 0 Z 0 H -
