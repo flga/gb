@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"runtime"
@@ -14,18 +15,21 @@ func init() {
 }
 
 func main() {
-	if len(os.Args) < 2 {
+	disasm := flag.Bool("d", false, "print disassembly when executing an instr")
+	flag.Parse()
+
+	if flag.NArg() < 1 {
 		fmt.Fprintln(os.Stderr, "no rom provided")
 		os.Exit(1)
 	}
 
-	if err := run(os.Args[1]); err != nil {
+	if err := run(flag.Arg(0), *disasm); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
 
-func run(romPath string) error {
+func run(romPath string, disasm bool) error {
 	rom, err := os.Open(romPath)
 	if err != nil {
 		return fmt.Errorf("could not load rom: %w", err)
@@ -56,11 +60,10 @@ func run(romPath string) error {
 	renderer.SetIntegerScale(true)
 	renderer.SetLogicalSize(160, 144)
 
-	console := gb.New()
-	if err := console.InsertCartridge(rom); err != nil {
+	console, err := gb.New(rom, disasm)
+	if err != nil {
 		return fmt.Errorf("could not load rom: %w", err)
 	}
-
 	fmt.Println(console.CartridgeInfo())
 
 	running := true
@@ -71,6 +74,10 @@ func run(romPath string) error {
 				running = false
 				break
 			}
+		}
+
+		for i := 0; i < 69905; i++ {
+			console.Clock()
 		}
 
 		renderer.SetDrawColor(255, 0, 0, 255)

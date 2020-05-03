@@ -7,6 +7,24 @@ import (
 	"strings"
 )
 
+type size int
+
+const (
+	Byte size = 1
+	KiB       = 1024 * Byte
+	MiB       = 1024 * KiB
+)
+
+func (s size) String() string {
+	if s > MiB {
+		return fmt.Sprintf("%dMiB", s/MiB)
+	}
+	if s > KiB {
+		return fmt.Sprintf("%dKiB", s/KiB)
+	}
+	return fmt.Sprintf("%d", s)
+}
+
 type rom []uint8
 
 func (r rom) read(addr uint16) uint8 {
@@ -52,7 +70,7 @@ func (c *cartridge) translateWrite(addr uint16) uint16 {
 }
 
 func (c *cartridge) read(addr uint16) uint8 {
-	return 0 // todo
+	return c.rom.read(addr)
 }
 
 func (c *cartridge) write(addr uint16, v uint8) {
@@ -76,8 +94,8 @@ type CartridgeInfo struct {
 	NewLicenseeCode      string
 	SGBFlag              uint8
 	CartridgeType        uint8
-	ROMSize              uint8
-	RAMSize              uint8
+	ROMSize              size
+	RAMSize              size
 	DestinationCode      uint8
 	OldLicenseeCode      uint8
 	MaskROMVersionNumber uint8
@@ -92,8 +110,21 @@ func (cm *CartridgeInfo) parseFrom(data []byte) {
 	cm.NewLicenseeCode = strings.TrimRight(string(data[0x0144:0x0145+1]), "\x00")
 	cm.SGBFlag = data[0x0146]
 	cm.CartridgeType = data[0x0147]
-	cm.ROMSize = data[0x0148]
-	cm.RAMSize = data[0x0149]
+	cm.ROMSize = 32 * KiB << uint64(data[0x0148])
+	switch data[0x0149] {
+	case 0x00:
+		cm.RAMSize = 0 * KiB
+	case 0x01:
+		cm.RAMSize = 2 * KiB
+	case 0x02:
+		cm.RAMSize = 8 * KiB
+	case 0x03:
+		cm.RAMSize = 32 * KiB
+	case 0x04:
+		cm.RAMSize = 128 * KiB
+	case 0x05:
+		cm.RAMSize = 64 * KiB
+	}
 	cm.DestinationCode = data[0x014A]
 	cm.OldLicenseeCode = data[0x014B]
 	cm.MaskROMVersionNumber = data[0x014C]
@@ -108,8 +139,8 @@ CGBFlag: 0x%X
 NewLicenseeCode: %q
 SGBFlag: 0x%X
 CartridgeType: 0x%X
-ROMSize: 0x%X
-RAMSize: 0x%X
+ROMSize: %v
+RAMSize: %v
 DestinationCode: 0x%X
 OldLicenseeCode: 0x%X
 MaskROMVersionNumber: 0x%X

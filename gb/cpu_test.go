@@ -12,9 +12,16 @@ const testBusCycleAddr uint32 = 0xFFFFF
 
 type testBus map[uint32]byte
 
+func (b testBus) peek(addr uint16) uint8 {
+	return b.read(addr)
+}
 func (b testBus) read(addr uint16) uint8 {
 	b[testBusCycleAddr]++
 	return b[uint32(addr)]
+}
+
+func (b testBus) poke(addr uint16, v uint8) {
+	b.write(addr, v)
 }
 
 func (b testBus) write(addr uint16, v uint8) {
@@ -3914,19 +3921,17 @@ func TestCpuOps0xF0_0xFF(t *testing.T) {
 
 func testInst(mnemonic string, tt cpuSingleTest, t *testing.T) {
 	t.Run(mnemonic, func(t *testing.T) {
-		c := &cpu{
-			A:  tt.pre.A,
-			F:  tt.pre.F,
-			B:  tt.pre.B,
-			C:  tt.pre.C,
-			D:  tt.pre.D,
-			E:  tt.pre.E,
-			H:  tt.pre.H,
-			L:  tt.pre.L,
-			SP: tt.pre.SP,
-			PC: tt.pre.PC,
-		}
-		c.init()
+		var c cpu
+		c.init(tt.pre.PC)
+		c.A = tt.pre.A
+		c.F = tt.pre.F
+		c.B = tt.pre.B
+		c.C = tt.pre.C
+		c.D = tt.pre.D
+		c.E = tt.pre.E
+		c.H = tt.pre.H
+		c.L = tt.pre.L
+		c.SP = tt.pre.SP
 
 		if tt.debug {
 			runtime.Breakpoint()
@@ -3999,11 +4004,10 @@ func TestHalt(t *testing.T) {
 			0x0040: 0xD9, // RETI
 			0x8000: 0x76, // HALT
 		}
-		c := &cpu{
-			IME: true,
-			PC:  0x8000,
-			SP:  0x80,
-		}
+		var c cpu
+		c.init(0x8000)
+		c.IME = true
+		c.SP = 0x80
 
 		assertPreInterrupt := func() {
 			if got, want := c.IME, true; got != want {
@@ -4016,8 +4020,6 @@ func TestHalt(t *testing.T) {
 				t.Fatalf("cpu.executeInst(0x76) SP = %v, want %v", got, want)
 			}
 		}
-
-		c.init()
 
 		c.clock(bus) // HALT
 		assertPreInterrupt()
@@ -4087,11 +4089,10 @@ func TestHalt(t *testing.T) {
 			0x8000: 0x76,               // HALT
 			0x8001: 0x3e, 0x8002: 0x42, // LD A,0x42
 		}
-		c := &cpu{
-			IME: false,
-			PC:  0x8000,
-			SP:  0x80,
-		}
+		var c cpu
+		c.init(0x8000)
+		c.IME = false
+		c.SP = 0x80
 
 		assertPreInterrupt := func() {
 			if got, want := c.IME, false; got != want {
@@ -4104,8 +4105,6 @@ func TestHalt(t *testing.T) {
 				t.Fatalf("cpu.executeInst(0x76) SP = %v, want %v", got, want)
 			}
 		}
-
-		c.init()
 
 		c.clock(bus) // HALT
 		assertPreInterrupt()
@@ -4180,13 +4179,10 @@ func TestHalt(t *testing.T) {
 			0x8000: 0x76,               // HALT
 			0x8001: 0x3E, 0x8002: 0x3C, // LD A,0x3C (should store 0x3E in A due to hw bug) and do INC A after
 		}
-		c := &cpu{
-			IME: false,
-			PC:  0x8000,
-			SP:  0x80,
-		}
-
-		c.init()
+		var c cpu
+		c.init(0x8000)
+		c.IME = false
+		c.SP = 0x80
 
 		c.IE |= intVBlank
 		c.IF |= intVBlank

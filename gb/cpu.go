@@ -1,6 +1,9 @@
 package gb
 
-import "fmt"
+import (
+	"fmt"
+	"os"
+)
 
 type op func(opcode uint8, b bus)
 
@@ -87,6 +90,8 @@ type cpu struct {
 	SP   uint16
 	PC   uint16
 
+	disasm bool
+
 	skipPCIncBug bool
 	scheduleIME  bool
 	IME          bool
@@ -98,7 +103,18 @@ type cpu struct {
 	table [256]op
 }
 
-func (c *cpu) init() {
+func (c *cpu) init(pc uint16) {
+	c.A = 0x01
+	c.F = 0xB0
+	c.B = 0x00
+	c.C = 0x13
+	c.D = 0x00
+	c.E = 0xD8
+	c.H = 0x01
+	c.L = 0x4D
+	c.SP = 0xFFFE
+	c.PC = pc
+
 	c.table = [256]op{
 		c.nop, c.ld_rr_d16, c.ld_irr_r, c.inc_rr, c.inc_r, c.dec_r, c.ld_r_d8, c.rlca, c.ld_ia16_sp, c.add_rr_rr, c.ld_r_irr, c.dec_rr, c.inc_r, c.dec_r, c.ld_r_d8, c.rrca,
 		c.stop, c.ld_rr_d16, c.ld_irr_r, c.inc_rr, c.inc_r, c.dec_r, c.ld_r_d8, c.rla, c.jr_r8, c.add_rr_rr, c.ld_r_irr, c.dec_rr, c.inc_r, c.dec_r, c.ld_r_d8, c.rra,
@@ -123,6 +139,10 @@ func (c *cpu) clock(b bus) {
 	switch c.state {
 	case run:
 		op := b.read(c.PC)
+		if c.disasm {
+			disassemble(c.PC, b, os.Stdout)
+		}
+
 		if c.scheduleIME {
 			c.scheduleIME = false
 			c.IME = true
@@ -213,25 +233,20 @@ func (c *cpu) read(addr uint16) uint8 {
 		return uint8(c.IF)
 	}
 
-	panic("unhandled cpu read")
+	panic(fmt.Sprintf("unhandled cpu read 0x%04X", addr))
 }
 
 func (c *cpu) write(addr uint16, v uint8) {
 	switch addr {
 	case 0xFFFF:
 		c.IE = interrupt(v)
+		return
 	case 0xFF0F:
 		c.IF = interrupt(v)
+		return
 	}
 
-	panic("unhandled cpu write")
-}
-
-func (c *cpu) executeInst(b bus) {
-	op := b.read(c.PC)
-	c.PC++
-
-	c.table[op](op, b)
+	panic(fmt.Sprintf("unhandled cpu write 0x%04X: 0x%02X", addr, v))
 }
 
 func (c *cpu) cancelInterruptEffects() {

@@ -18,13 +18,66 @@ const (
 )
 
 type GameBoy struct {
-	bus *mmu
+	cpu       *cpu
+	ppu       *ppu
+	apu       *apu
+	joypad    *joypad
+	serial    *serial
+	timer     *timer
+	cartridge *cartridge
+	bus       *mmu
 }
 
-func New() *GameBoy {
-	return &GameBoy{
-		bus: newMMU(),
+func New(r io.Reader, disasm bool) (*GameBoy, error) {
+
+	cart, err := newCartridge(r)
+	if err != nil {
+		return nil, err
 	}
+
+	var cpu cpu
+	var ppu ppu
+	var apu apu
+	var joypad joypad
+	var serial serial
+	var timer timer
+
+	cpu.init(0x0100)
+	cpu.disasm = disasm
+	// ppu.init()
+	// apu.init()
+	// joypad.init()
+	// serial.init()
+	// timer.init()
+
+	bus := mmu{
+		cpu:       &cpu,
+		ppu:       &ppu,
+		apu:       &apu,
+		joypad:    &joypad,
+		serial:    &serial,
+		timer:     &timer,
+		wram:      make(memory, 8*KiB),
+		hram:      make(memory, 127),
+		cartridge: cart,
+	}
+
+	bus.init()
+
+	return &GameBoy{
+		cpu:       &cpu,
+		ppu:       &ppu,
+		apu:       &apu,
+		joypad:    &joypad,
+		serial:    &serial,
+		timer:     &timer,
+		cartridge: cart,
+		bus:       &bus,
+	}, nil
+}
+
+func (gb *GameBoy) Clock() {
+	gb.bus.cpu.clock(gb.bus)
 }
 
 func (gb *GameBoy) InsertCartridge(r io.Reader) error {
