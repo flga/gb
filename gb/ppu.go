@@ -18,7 +18,7 @@ const (
 type lcdStat uint8
 
 const (
-	lcdStatMode lcdStat = 2 // Mode Flag       (Mode 0-3, see below) (Read Only)
+	lcdStatMode lcdStat = 3 // Mode Flag       (Mode 0-3, see below) (Read Only)
 	//						0: During H-Blank
 	//						1: During V-Blank
 	//						2: During Searching OAM
@@ -45,11 +45,52 @@ type ppu struct {
 	OBP1 uint8   // Object Palette 1 Data (R/W)
 	DMA  uint8   // DMA Transfer and Start Address (R/W)
 
-	cycle uint64
+	clocks uint64
 }
 
 func (p *ppu) clock(b bus) {
-	//todo: frames
+	switch {
+	case p.LY >= 0 && p.LY <= 143:
+		// mode 2 (oam search)
+		if p.clocks >= 0 && p.clocks <= 79 {
+			p.setMode(2)
+		}
+
+		// mode 3 (draw)
+		if p.clocks >= 80 && p.clocks <= 251 {
+			p.setMode(3)
+
+			if p.clocks == 251 {
+				// TODO: raster line (for now)
+			}
+		}
+
+		// mode 0 (hblank)
+		if p.clocks >= 252 && p.clocks <= 455 {
+			p.setMode(0)
+		}
+
+	// mode 1 (vblank)
+	case p.LY >= 144 && p.LY <= 153:
+		p.setMode(1)
+		if p.clocks == 0 {
+			iflag := interrupt(b.peek(0xFF0F)) // TODO: interrupt ctrl
+			b.poke(0xFF0F, uint8(iflag|intVBlank))
+			fmt.Println("ppu: triggered vblank")
+		}
+	}
+
+	p.clocks++
+	p.clocks %= 456
+	if p.clocks == 0 {
+		p.LY++
+		p.LY %= 154
+	}
+}
+
+func (p *ppu) setMode(mode uint8) {
+	p.STAT &^= 3
+	p.STAT |= lcdStat(mode & 3)
 }
 
 func (p *ppu) read(addr uint16) uint8 {

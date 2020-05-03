@@ -87,7 +87,12 @@ func (b *mmu) clock() {
 	// todo: frequencies
 
 	b.cpu.clock(b)
+
 	b.apu.clock(b)
+
+	b.ppu.clock(b)
+	b.ppu.clock(b)
+	b.ppu.clock(b)
 	b.ppu.clock(b)
 }
 
