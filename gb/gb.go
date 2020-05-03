@@ -1,7 +1,9 @@
 package gb
 
 import (
+	"bytes"
 	"io"
+	"io/ioutil"
 )
 
 type Button uint8
@@ -103,3 +105,18 @@ func (gb *GameBoy) PowerOn()              {}
 func (gb *GameBoy) PowerOff()             {}
 func (gb *GameBoy) SetVolume(vol float64) {}
 func (gb *GameBoy) Press(btns Button)     {}
+
+func (gb *GameBoy) DumpWram() error {
+	f, err := ioutil.TempFile(".", "wram-*.bin")
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	_, err = io.Copy(f, bytes.NewReader(gb.bus.wram))
+	if err != nil {
+		return err
+	}
+
+	return nil
+}

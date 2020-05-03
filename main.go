@@ -69,10 +69,17 @@ func run(romPath string, disasm bool) error {
 	running := true
 	for running {
 		for event := sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
-			switch event.(type) {
+			switch evt := event.(type) {
 			case *sdl.QuitEvent:
 				running = false
 				break
+
+			case *sdl.KeyboardEvent:
+				if evt.State == sdl.PRESSED && evt.Repeat == 0 && evt.Keysym.Sym == sdl.K_d && evt.Keysym.Mod&sdl.KMOD_CTRL > 0 {
+					if err := console.DumpWram(); err != nil {
+						fmt.Fprintf(os.Stderr, "unable to dump wram: %v\n", err)
+					}
+				}
 			}
 		}
 

@@ -1,7 +1,5 @@
 package gb
 
-import "fmt"
-
 type lcdc uint8
 
 const (
@@ -45,6 +43,9 @@ type ppu struct {
 	OBP1 uint8   // Object Palette 1 Data (R/W)
 	DMA  uint8   // DMA Transfer and Start Address (R/W)
 
+	VRAM [8 * KiB]byte
+	OAM  [200]byte
+
 	clocks uint64
 }
 
@@ -76,7 +77,7 @@ func (p *ppu) clock(b bus) {
 		if p.clocks == 0 {
 			iflag := interrupt(b.peek(0xFF0F)) // TODO: interrupt ctrl
 			b.poke(0xFF0F, uint8(iflag|intVBlank))
-			fmt.Println("ppu: triggered vblank")
+			// fmt.Println("ppu: triggered vblank")
 		}
 	}
 
@@ -121,7 +122,9 @@ func (p *ppu) read(addr uint16) uint8 {
 		return p.DMA
 	}
 
-	panic(fmt.Sprintf("unhandled ppu read 0x%04X", addr))
+	// fmt.Fprintf(os.Stderr, "unhandled ppu read 0x%04X\n", addr)
+	// panic(fmt.Sprintf("unhandled ppu read 0x%04X", addr))
+	return 0
 }
 
 func (p *ppu) write(addr uint16, v uint8) {
@@ -161,5 +164,7 @@ func (p *ppu) write(addr uint16, v uint8) {
 		return
 	}
 
-	panic(fmt.Sprintf("unhandled ppu write 0x%04X: 0x%02X", addr, v))
+	// fmt.Fprintf(os.Stderr, "unhandled ppu write 0x%04X: 0x%02X\n", addr, v)
+	// panic(fmt.Sprintf("unhandled ppu write 0x%04X: 0x%02X", addr, v))
+	return
 }
