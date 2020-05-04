@@ -45,6 +45,8 @@ type mmu struct {
 	wram      memory
 	hram      memory
 	cartridge *cartridge
+
+	cycles uint64
 }
 
 func (b *mmu) init() {
@@ -94,6 +96,8 @@ func (b *mmu) clock() {
 	b.ppu.clock(b)
 	b.ppu.clock(b)
 	b.ppu.clock(b)
+
+	b.cycles++
 }
 
 func (b *mmu) peek(addr uint16) uint8 {
@@ -230,8 +234,13 @@ func (b *mmu) read(addr uint16) uint8 {
 	v := b.peek(addr)
 	b.apu.clock(b)
 	b.ppu.clock(b)
+	b.ppu.clock(b)
+	b.ppu.clock(b)
+	b.ppu.clock(b)
 	b.serial.clock(b)
 	b.timer.clock(b)
+
+	b.cycles++
 	return v
 }
 
@@ -390,6 +399,10 @@ func (b *mmu) write(addr uint16, v uint8) {
 	b.poke(addr, v)
 	b.apu.clock(b)
 	b.ppu.clock(b)
+	b.ppu.clock(b)
+	b.ppu.clock(b)
+	b.ppu.clock(b)
 	b.serial.clock(b)
 	b.timer.clock(b)
+	b.cycles++
 }

@@ -1,5 +1,9 @@
 package gb
 
+import (
+	"image/color"
+)
+
 type lcdc uint8
 
 const (
@@ -43,9 +47,12 @@ type ppu struct {
 	OBP1 uint8   // Object Palette 1 Data (R/W)
 	DMA  uint8   // DMA Transfer and Start Address (R/W)
 
-	VRAM [8 * KiB]byte
-	OAM  [200]byte
+	VRAM       [8 * KiB]byte
+	OAM        [200]byte
+	Nametable1 [1 * KiB]byte
+	Nametable2 [1 * KiB]byte
 
+	frame  [160 * 144 * 4]uint8
 	clocks uint64
 }
 
@@ -62,22 +69,25 @@ func (p *ppu) clock(b bus) {
 			p.setMode(3)
 
 			if p.clocks == 251 {
-				// TODO: raster line (for now)
+				p.drawLine()
 			}
 		}
 
 		// mode 0 (hblank)
 		if p.clocks >= 252 && p.clocks <= 455 {
 			p.setMode(0)
+			if p.clocks == 252 && p.STAT&lcdStatHBlank > 0 {
+				iflag := interrupt(b.peek(0xFF0F)) // TODO: interrupt ctrl
+				b.poke(0xFF0F, uint8(iflag|intLCDc))
+			}
 		}
 
 	// mode 1 (vblank)
 	case p.LY >= 144 && p.LY <= 153:
 		p.setMode(1)
-		if p.clocks == 0 {
+		if p.clocks == 0 && p.STAT&lcdStatVBlank > 0 {
 			iflag := interrupt(b.peek(0xFF0F)) // TODO: interrupt ctrl
 			b.poke(0xFF0F, uint8(iflag|intVBlank))
-			// fmt.Println("ppu: triggered vblank")
 		}
 	}
 
@@ -86,7 +96,75 @@ func (p *ppu) clock(b bus) {
 	if p.clocks == 0 {
 		p.LY++
 		p.LY %= 154
+
+		if p.STAT&lcdStatCoincidenceInt > 0 {
+			if p.STAT&lcdStatCoincidenceFlag == 0 && p.LY != p.LYC {
+				iflag := interrupt(b.peek(0xFF0F)) // TODO: interrupt ctrl
+				b.poke(0xFF0F, uint8(iflag|intLCDc))
+			}
+			if p.STAT&lcdStatCoincidenceFlag == 1 && p.LY == p.LYC {
+				iflag := interrupt(b.peek(0xFF0F)) // TODO: interrupt ctrl
+				b.poke(0xFF0F, uint8(iflag|intLCDc))
+			}
+		}
 	}
+}
+
+func (p *ppu) drawLine() {
+	testPalette := [4]color.RGBA{
+		{0xFF, 0xFF, 0xFF, 0xFF},
+		{0xCC, 0xCC, 0xCC, 0xFF},
+		{0x33, 0x33, 0x33, 0xFF},
+		{0x00, 0x00, 0x00, 0xFF},
+	}
+	for fineX := uint16(0); fineX < 160; fineX++ {
+		fineY := uint16(p.LY)
+		row := fineY % 8
+		tileIndex := p.tileIndex(fineX, fineY)
+
+		addr := p.tileBaseAddr(tileIndex) + row*2
+		tileLo := p.read(addr)
+		tileHi := p.read(addr + 1)
+
+		tileHi <<= fineX % 8
+		tileLo <<= fineX % 8
+
+		pixelLo := tileLo & 0x80 >> 7
+		pixelHi := tileHi & 0x80 >> 7
+		paletteIdx := pixelHi<<1 | pixelLo
+		color := testPalette[paletteIdx]
+
+		offset := int(fineY)*160*4 + int(fineX)*4
+		p.frame[offset+0] = color.R
+		p.frame[offset+1] = color.G
+		p.frame[offset+2] = color.B
+		p.frame[offset+3] = color.A
+	}
+}
+
+func (p *ppu) tileIndex(x, y uint16) uint16 {
+	offset := y / 8 * 32
+	x /= 8
+	if p.LCDC&lcdcBgSelect == 0 {
+		return uint16(p.Nametable1[offset+x]) * 16
+	}
+	if p.LCDC&lcdcBgSelect > 0 {
+		return uint16(p.Nametable2[offset+x]) * 16
+	}
+
+	panic("?")
+}
+
+func (p *ppu) tileBaseAddr(tileIdx uint16) uint16 {
+	// (0=8800-97FF, 1=8000-8FFF)
+	mode := p.LCDC & lcdcBgWindowSelect
+	if mode == 0 {
+		return uint16(0x9000 + int(int8(tileIdx)))
+	}
+	if mode > 0 {
+		return uint16(0x8000 + int(tileIdx))
+	}
+	panic("?")
 }
 
 func (p *ppu) setMode(mode uint8) {
@@ -120,6 +198,17 @@ func (p *ppu) read(addr uint16) uint8 {
 		return p.OBP1
 	case 0xFF46:
 		return p.DMA
+	}
+
+	if addr >= 0x9800 && addr <= 0x9BFF {
+		return p.Nametable1[addr-0x9800]
+	}
+	if addr >= 0x9C00 && addr <= 0x9FFF {
+		return p.Nametable2[addr-0x9800]
+	}
+
+	if addr >= 0x8000 && addr <= 0x8FFF {
+		return p.VRAM[addr-0x8000]
 	}
 
 	// fmt.Fprintf(os.Stderr, "unhandled ppu read 0x%04X\n", addr)
@@ -164,7 +253,65 @@ func (p *ppu) write(addr uint16, v uint8) {
 		return
 	}
 
+	if addr >= 0x9800 && addr <= 0x9BFF {
+		p.Nametable1[addr-0x9800] = v
+		return
+	}
+	if addr >= 0x9C00 && addr <= 0x9FFF {
+		p.Nametable2[addr-0x9C00] = v
+		return
+	}
+
+	if addr >= 0x8000 && addr <= 0x8FFF {
+		p.VRAM[addr-0x8000] = v
+		return
+	}
+
 	// fmt.Fprintf(os.Stderr, "unhandled ppu write 0x%04X: 0x%02X\n", addr, v)
 	// panic(fmt.Sprintf("unhandled ppu write 0x%04X: 0x%02X", addr, v))
 	return
 }
+
+// func (p *ppu) drawFrame() {
+// 	if p.frame == nil {
+// 		p.frame = image.NewRGBA(image.Rect(0, 0, 160, 144))
+// 	}
+
+// 	testPalette := [4]color.RGBA{
+// 		{0xFF, 0xFF, 0xFF, 0xFF},
+// 		{0x00, 0x00, 0x00, 0xFF},
+// 		{0x00, 0x00, 0x00, 0xFF},
+// 		{0x00, 0x00, 0x00, 0xFF},
+// 	}
+
+// 	for coarseY := uint16(0); coarseY < 32; coarseY++ {
+// 		for coarseX := uint16(0); coarseX < 32; coarseX++ {
+// 			var tileIdx uint16
+// 			if p.LCDC&lcdcBgSelect == 0 {
+// 				tileIdx = uint16(p.Nametable1[coarseY*32+coarseX])
+// 			} else if p.LCDC&lcdcBgSelect > 0 {
+// 				tileIdx = uint16(p.Nametable2[coarseY*32+coarseX])
+// 			}
+// 			tileIdx *= 16
+
+// 			addr := uint16(p.tileBaseAddr(tileIdx))
+// 			for fineY := uint16(0); fineY < 8; fineY++ {
+// 				tileLo := p.read(addr)
+// 				addr++
+// 				tileHi := p.read(addr)
+// 				addr++
+
+// 				for fineX := uint16(0); fineX < 8; fineX++ {
+// 					pixelLo := tileLo & 0x80 >> 7
+// 					pixelHi := tileHi & 0x80 >> 7
+
+// 					tileLo <<= 1
+// 					tileHi <<= 1
+
+// 					paletteIdx := pixelHi<<1 | pixelLo
+// 					p.frame.Set(int(coarseX*8+fineX), int(coarseY*8+fineY), testPalette[paletteIdx])
+// 				}
+// 			}
+// 		}
+// 	}
+// }

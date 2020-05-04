@@ -79,7 +79,15 @@ func New(r io.Reader, disasm bool) (*GameBoy, error) {
 }
 
 func (gb *GameBoy) Clock() {
-	gb.bus.cpu.clock(gb.bus)
+	gb.cpu.clock(gb.bus)
+}
+
+func (gb *GameBoy) ClockFrame() []uint8 {
+	start := gb.bus.cycles
+	for gb.bus.cycles < start+17556 {
+		gb.bus.clock()
+	}
+	return gb.ppu.frame[:]
 }
 
 func (gb *GameBoy) InsertCartridge(r io.Reader) error {

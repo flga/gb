@@ -52,7 +52,8 @@ func run(romPath string, disasm bool) error {
 	}
 	defer window.Destroy()
 
-	renderer, err := sdl.CreateRenderer(window, -1, sdl.RENDERER_ACCELERATED|sdl.RENDERER_PRESENTVSYNC)
+	// renderer, err := sdl.CreateRenderer(window, -1, sdl.RENDERER_ACCELERATED|sdl.RENDERER_PRESENTVSYNC)
+	renderer, err := sdl.CreateRenderer(window, -1, sdl.RENDERER_ACCELERATED)
 	if err != nil {
 		panic(err)
 	}
@@ -60,12 +61,18 @@ func run(romPath string, disasm bool) error {
 	renderer.SetIntegerScale(true)
 	renderer.SetLogicalSize(160, 144)
 
+	tex, err := renderer.CreateTexture(sdl.PIXELFORMAT_ABGR8888, sdl.TEXTUREACCESS_STREAMING, 160, 144)
+	if err != nil {
+		panic(err)
+	}
+
 	console, err := gb.New(rom, disasm)
 	if err != nil {
 		return fmt.Errorf("could not load rom: %w", err)
 	}
 	fmt.Println(console.CartridgeInfo())
-
+	var frameNo uint64
+	_ = frameNo
 	running := true
 	for running {
 		for event := sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
@@ -83,12 +90,15 @@ func run(romPath string, disasm bool) error {
 			}
 		}
 
-		for i := 0; i < 69905; i++ {
-			console.Clock()
+		frame := console.ClockFrame()
+		data, _, err := tex.Lock(nil)
+		if err != nil {
+			panic(err)
 		}
+		copy(data, frame)
+		tex.Unlock()
 
-		renderer.SetDrawColor(255, 0, 0, 255)
-		renderer.FillRect(&sdl.Rect{X: 0, Y: 0, W: 200, H: 200})
+		renderer.Copy(tex, nil, nil)
 		renderer.Present()
 	}
 
