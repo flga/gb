@@ -1,7 +1,5 @@
 package gb
 
-import "fmt"
-
 type apu struct {
 	ChannelControl uint8 // 0xFF24 - NR50 - Channel control / ON-OFF / Volume (R/W)
 	OutputTerminal uint8 // 0xFF25 - NR51 - Selection of Sound output terminal (R/W)
@@ -102,7 +100,7 @@ func (p *pulse) read(addr uint16) uint8 {
 		case 0xFF14:
 			return p.FreqHi
 		}
-		panic(fmt.Sprintf("unhandled pulse1 read 0x%04X", addr))
+		// panic(fmt.Sprintf("unhandled pulse1 read 0x%04X", addr))
 	}
 
 	switch addr {
@@ -113,7 +111,8 @@ func (p *pulse) read(addr uint16) uint8 {
 	case 0xFF19:
 		return p.FreqHi
 	}
-	panic(fmt.Sprintf("unhandled pulse2 read 0x%04X", addr))
+	// panic(fmt.Sprintf("unhandled pulse2 read 0x%04X", addr))
+	return 0
 }
 
 func (p *pulse) write(addr uint16, v uint8) {
@@ -135,7 +134,7 @@ func (p *pulse) write(addr uint16, v uint8) {
 			p.FreqHi = v
 			return
 		}
-		panic(fmt.Sprintf("unhandled pulse1 write 0x%04X: 0x%02X", addr, v))
+		// panic(fmt.Sprintf("unhandled pulse1 write 0x%04X: 0x%02X", addr, v))
 	}
 
 	switch addr {
@@ -152,7 +151,7 @@ func (p *pulse) write(addr uint16, v uint8) {
 		p.FreqHi = v
 		return
 	}
-	panic(fmt.Sprintf("unhandled pulse2 write 0x%04X: 0x%02X", addr, v))
+	// panic(fmt.Sprintf("unhandled pulse2 write 0x%04X: 0x%02X", addr, v))
 }
 
 type wave struct {
@@ -169,7 +168,7 @@ func (w *wave) sample() float64 { return 0 }
 
 func (w *wave) read(addr uint16) uint8 {
 	if addr >= 0xFF30 && addr <= 0xFF3F {
-		return w.Pattern[0xFF30-addr]
+		return w.Pattern[addr-0xFF30]
 	}
 
 	switch addr {
@@ -183,7 +182,8 @@ func (w *wave) read(addr uint16) uint8 {
 		return w.FreqHi
 	}
 
-	panic(fmt.Sprintf("unhandled wave read 0x%04X", addr))
+	// panic(fmt.Sprintf("unhandled wave read 0x%04X", addr))
+	return 0
 }
 
 func (w *wave) write(addr uint16, v uint8) {
@@ -210,7 +210,7 @@ func (w *wave) write(addr uint16, v uint8) {
 		return
 	}
 
-	panic(fmt.Sprintf("unhandled wave write 0x%04X: 0x%02X", addr, v))
+	// panic(fmt.Sprintf("unhandled wave write 0x%04X: 0x%02X", addr, v))
 }
 
 type noise struct {
@@ -235,7 +235,9 @@ func (n *noise) read(addr uint16) uint8 {
 		return n.CounterLoad
 	}
 
-	panic(fmt.Sprintf("unhandled noise read 0x%04X", addr))
+	// panic(fmt.Sprintf("unhandled noise read 0x%04X", addr))
+	return 0
+
 }
 
 func (n *noise) write(addr uint16, v uint8) {
@@ -254,5 +256,5 @@ func (n *noise) write(addr uint16, v uint8) {
 		return
 	}
 
-	panic(fmt.Sprintf("unhandled noise write 0x%04X: 0x%02X", addr, v))
+	// panic(fmt.Sprintf("unhandled noise write 0x%04X: 0x%02X", addr, v))
 }

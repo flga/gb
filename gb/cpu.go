@@ -160,7 +160,7 @@ func (c *cpu) clock(b bus) {
 	case run:
 		op := b.read(c.PC)
 		if c.disasm {
-			disassemble(c.PC, b, os.Stdout)
+			disassemble(c.PC, b, c.A, c.F, c.B, c.C, c.D, c.E, c.H, c.L, c.SP, os.Stdout)
 		}
 
 		if c.scheduleIME {
@@ -270,7 +270,7 @@ func (c *cpu) write(addr uint16, v uint8) {
 }
 
 func (c *cpu) cancelInterruptEffects() {
-	fmt.Println("??")
+	// fmt.Println("??")
 }
 
 func (c *cpu) adc8(a, b uint8) uint8 {
@@ -654,10 +654,9 @@ func (c *cpu) cp_d8(opcode uint8, b bus) {
 	v := b.read(c.PC)
 	c.PC++
 
-	c.F.set(Z, c.A == v)
-	c.F.set(N, true)
-	c.F.set(H, v < c.A)
-	c.F.set(CY, v > c.A)
+	a := c.A
+	c.sub8(c.A, v)
+	c.A = a
 }
 
 // 0xBE CP (HL) 1 8 0 Z 1 H C
@@ -667,10 +666,9 @@ func (c *cpu) cp_irr(opcode uint8, b bus) {
 	addr := hi<<8 | lo
 	v := b.read(addr)
 
-	c.F.set(Z, c.A == v)
-	c.F.set(N, true)
-	c.F.set(H, v < c.A)
-	c.F.set(CY, v > c.A)
+	a := c.A
+	c.sub8(c.A, v)
+	c.A = a
 }
 
 // 0xB8 CP B    1 4 0 Z 1 H C
@@ -699,10 +697,9 @@ func (c *cpu) cp_r(opcode uint8, b bus) {
 		v = c.A
 	}
 
-	c.F.set(Z, c.A == v)
-	c.F.set(N, true)
-	c.F.set(H, v < c.A)
-	c.F.set(CY, v > c.A)
+	a := c.A
+	c.sub8(c.A, v)
+	c.A = a
 }
 
 // 0x2F CPL     1 4 0 - 1 1 -
@@ -713,7 +710,26 @@ func (c *cpu) cpl(opcode uint8, b bus) {
 }
 
 // 0x27 DAA     1 4 0 Z - 0 C
-func (c *cpu) daa(opcode uint8, b bus) { panic("not implemented") }
+func (c *cpu) daa(opcode uint8, b bus) {
+	if c.F.has(N) {
+		if c.F.has(CY) {
+			c.A -= 0x60
+		}
+		if c.F.has(H) {
+			c.A -= 0x6
+		}
+	} else {
+		if c.F.has(CY) || c.A > 0x99 {
+			c.A += 0x60
+			c.F.set(CY, true)
+		}
+		if c.F.has(H) || (c.A&0x0f) > 0x09 {
+			c.A += 0x6
+		}
+	}
+	c.F.set(Z, c.A == 0)
+	c.F.set(H, false)
+}
 
 // 0x35 DEC (HL)        1 12 0 Z 1 H -
 func (c *cpu) dec_irr(opcode uint8, b bus) {
@@ -903,7 +919,7 @@ func (c *cpu) inc_rr(opcode uint8, b bus) {
 // 0x33 INC SP  1 8 0 - - - -
 func (c *cpu) inc_sp(opcode uint8, b bus) {
 	c.SP++
-	b.read(c.PC) // TODO: what actually gets read (or written)?
+	b.read(c.SP) // TODO: what actually gets read (or written)?
 }
 
 // 0xD2 JP NC,a16       3 16 12 - - - -
@@ -1579,6 +1595,9 @@ func (c *cpu) or_d8(opcode uint8, b bus) {
 
 	c.A |= v
 	c.F.set(Z, c.A == 0)
+	c.F.set(N, false)
+	c.F.set(H, false)
+	c.F.set(CY, false)
 }
 
 // 0xB6 OR (HL) 1 8 0 Z 0 0 0
@@ -1590,6 +1609,9 @@ func (c *cpu) or_irr(opcode uint8, b bus) {
 
 	c.A |= v
 	c.F.set(Z, c.A == 0)
+	c.F.set(N, false)
+	c.F.set(H, false)
+	c.F.set(CY, false)
 }
 
 // 0xB0 OR B    1 4 0 Z 0 0 0
@@ -1620,6 +1642,9 @@ func (c *cpu) or_r(opcode uint8, b bus) {
 
 	c.A |= v
 	c.F.set(Z, c.A == 0)
+	c.F.set(N, false)
+	c.F.set(H, false)
+	c.F.set(CY, false)
 }
 
 // 0xC1 POP BC  1 12 0 - - - -
@@ -1628,7 +1653,7 @@ func (c *cpu) or_r(opcode uint8, b bus) {
 // 0xF1 POP AF  1 12 0 Z N H C
 func (c *cpu) pop_rr(opcode uint8, b bus) {
 	var rrhi, rrlo *uint8
-
+	var isf bool
 	switch opcode {
 	case 0xC1:
 		rrhi = &c.B
@@ -1642,9 +1667,13 @@ func (c *cpu) pop_rr(opcode uint8, b bus) {
 	case 0xF1:
 		rrhi = &c.A
 		rrlo = (*uint8)(&c.F)
+		isf = true
 	}
 
 	*rrlo = b.read(c.SP)
+	if isf {
+		*rrlo &= 0xF0
+	}
 	c.SP++
 	*rrhi = b.read(c.SP)
 	c.SP++
@@ -1801,8 +1830,8 @@ func (c *cpu) rla(opcode uint8, b bus) {
 
 // 0x07 RLCA    1 4 0 0 0 0 C
 func (c *cpu) rlca(opcode uint8, b bus) {
-	carryOut := c.A & 0x80
-	c.A = c.A<<1 | carryOut>>7
+	carryOut := c.A & 0x80 >> 7
+	c.A = c.A<<1 | carryOut
 
 	c.F.set(Z, false)
 	c.F.set(N, false)
@@ -1828,8 +1857,8 @@ func (c *cpu) rra(opcode uint8, b bus) {
 
 // 0x0F RRCA    1 4 0 0 0 0 C
 func (c *cpu) rrca(opcode uint8, b bus) {
-	carryOut := c.A & 0x1
-	c.A = c.A>>1 | carryOut<<7
+	carryOut := c.A & 0x1 << 7
+	c.A = c.A>>1 | carryOut
 
 	c.F.set(Z, false)
 	c.F.set(N, false)
@@ -1928,6 +1957,8 @@ func (c *cpu) sbc_r_r(opcode uint8, b bus) {
 
 // 0x37 SCF     1 4 0 - 0 0 1
 func (c *cpu) scf(opcode uint8, b bus) {
+	c.F.set(N, false)
+	c.F.set(H, false)
 	c.F.set(CY, true)
 }
 
@@ -1990,6 +2021,9 @@ func (c *cpu) xor_d8(opcode uint8, b bus) {
 
 	c.A = c.A ^ v
 	c.F.set(Z, c.A == 0)
+	c.F.set(N, false)
+	c.F.set(H, false)
+	c.F.set(CY, false)
 }
 
 // 0xAE XOR (HL)        1 8 0 Z 0 0 0
@@ -2001,6 +2035,9 @@ func (c *cpu) xor_irr(opcode uint8, b bus) {
 
 	c.A = c.A ^ v
 	c.F.set(Z, c.A == 0)
+	c.F.set(N, false)
+	c.F.set(H, false)
+	c.F.set(CY, false)
 }
 
 // 0xA8 XOR B   1 4 0 Z 0 0 0
@@ -2031,6 +2068,9 @@ func (c *cpu) xor_r(opcode uint8, b bus) {
 
 	c.A = c.A ^ v
 	c.F.set(Z, c.A == 0)
+	c.F.set(N, false)
+	c.F.set(H, false)
+	c.F.set(CY, false)
 }
 
 // 0x46 BIT 0,(HL)      2 16 0 Z 0 1 -
@@ -2320,25 +2360,25 @@ func (c *cpu) bit_r(opcode uint8, b bus) {
 func (c *cpu) res_irr(opcode uint8, b bus) {
 	addr := uint16(c.H)<<8 | uint16(c.L)
 	v := b.read(addr)
-	var mask uint8 = 0x80
+	var mask uint8
 
 	switch opcode {
 	case 0x86:
-		mask >>= 0
+		mask = 1 << 0
 	case 0x8E:
-		mask >>= 1
+		mask = 1 << 1
 	case 0x96:
-		mask >>= 2
+		mask = 1 << 2
 	case 0x9E:
-		mask >>= 3
+		mask = 1 << 3
 	case 0xA6:
-		mask >>= 4
+		mask = 1 << 4
 	case 0xAE:
-		mask >>= 5
+		mask = 1 << 5
 	case 0xB6:
-		mask >>= 6
+		mask = 1 << 6
 	case 0xBE:
-		mask >>= 7
+		mask = 1 << 7
 	}
 
 	v &^= mask
@@ -2403,177 +2443,177 @@ func (c *cpu) res_irr(opcode uint8, b bus) {
 // 0xBF RES 7,A 2 8 0 - - - -
 func (c *cpu) res_r(opcode uint8, b bus) {
 	var r *uint8
-	var mask uint8 = 0x80
+	var mask uint8
 
 	// ew again
 	switch opcode {
 	case 0x80:
-		mask >>= 0
+		mask = 1 << 0
 		r = &c.B
 	case 0x81:
-		mask >>= 0
+		mask = 1 << 0
 		r = &c.C
 	case 0x82:
-		mask >>= 0
+		mask = 1 << 0
 		r = &c.D
 	case 0x83:
-		mask >>= 0
+		mask = 1 << 0
 		r = &c.E
 	case 0x84:
-		mask >>= 0
+		mask = 1 << 0
 		r = &c.H
 	case 0x85:
-		mask >>= 0
+		mask = 1 << 0
 		r = &c.L
 	case 0x87:
-		mask >>= 0
+		mask = 1 << 0
 		r = &c.A
 	case 0x88:
-		mask >>= 1
+		mask = 1 << 1
 		r = &c.B
 	case 0x89:
-		mask >>= 1
+		mask = 1 << 1
 		r = &c.C
 	case 0x8A:
-		mask >>= 1
+		mask = 1 << 1
 		r = &c.D
 	case 0x8B:
-		mask >>= 1
+		mask = 1 << 1
 		r = &c.E
 	case 0x8C:
-		mask >>= 1
+		mask = 1 << 1
 		r = &c.H
 	case 0x8D:
-		mask >>= 1
+		mask = 1 << 1
 		r = &c.L
 	case 0x8F:
-		mask >>= 1
+		mask = 1 << 1
 		r = &c.A
 	case 0x90:
-		mask >>= 2
+		mask = 1 << 2
 		r = &c.B
 	case 0x91:
-		mask >>= 2
+		mask = 1 << 2
 		r = &c.C
 	case 0x92:
-		mask >>= 2
+		mask = 1 << 2
 		r = &c.D
 	case 0x93:
-		mask >>= 2
+		mask = 1 << 2
 		r = &c.E
 	case 0x94:
-		mask >>= 2
+		mask = 1 << 2
 		r = &c.H
 	case 0x95:
-		mask >>= 2
+		mask = 1 << 2
 		r = &c.L
 	case 0x97:
-		mask >>= 2
+		mask = 1 << 2
 		r = &c.A
 	case 0x98:
-		mask >>= 3
+		mask = 1 << 3
 		r = &c.B
 	case 0x99:
-		mask >>= 3
+		mask = 1 << 3
 		r = &c.C
 	case 0x9A:
-		mask >>= 3
+		mask = 1 << 3
 		r = &c.D
 	case 0x9B:
-		mask >>= 3
+		mask = 1 << 3
 		r = &c.E
 	case 0x9C:
-		mask >>= 3
+		mask = 1 << 3
 		r = &c.H
 	case 0x9D:
-		mask >>= 3
+		mask = 1 << 3
 		r = &c.L
 	case 0x9F:
-		mask >>= 3
+		mask = 1 << 3
 		r = &c.A
 	case 0xA0:
-		mask >>= 4
+		mask = 1 << 4
 		r = &c.B
 	case 0xA1:
-		mask >>= 4
+		mask = 1 << 4
 		r = &c.C
 	case 0xA2:
-		mask >>= 4
+		mask = 1 << 4
 		r = &c.D
 	case 0xA3:
-		mask >>= 4
+		mask = 1 << 4
 		r = &c.E
 	case 0xA4:
-		mask >>= 4
+		mask = 1 << 4
 		r = &c.H
 	case 0xA5:
-		mask >>= 4
+		mask = 1 << 4
 		r = &c.L
 	case 0xA7:
-		mask >>= 4
+		mask = 1 << 4
 		r = &c.A
 	case 0xA8:
-		mask >>= 5
+		mask = 1 << 5
 		r = &c.B
 	case 0xA9:
-		mask >>= 5
+		mask = 1 << 5
 		r = &c.C
 	case 0xAA:
-		mask >>= 5
+		mask = 1 << 5
 		r = &c.D
 	case 0xAB:
-		mask >>= 5
+		mask = 1 << 5
 		r = &c.E
 	case 0xAC:
-		mask >>= 5
+		mask = 1 << 5
 		r = &c.H
 	case 0xAD:
-		mask >>= 5
+		mask = 1 << 5
 		r = &c.L
 	case 0xAF:
-		mask >>= 5
+		mask = 1 << 5
 		r = &c.A
 	case 0xB0:
-		mask >>= 6
+		mask = 1 << 6
 		r = &c.B
 	case 0xB1:
-		mask >>= 6
+		mask = 1 << 6
 		r = &c.C
 	case 0xB2:
-		mask >>= 6
+		mask = 1 << 6
 		r = &c.D
 	case 0xB3:
-		mask >>= 6
+		mask = 1 << 6
 		r = &c.E
 	case 0xB4:
-		mask >>= 6
+		mask = 1 << 6
 		r = &c.H
 	case 0xB5:
-		mask >>= 6
+		mask = 1 << 6
 		r = &c.L
 	case 0xB7:
-		mask >>= 6
+		mask = 1 << 6
 		r = &c.A
 	case 0xB8:
-		mask >>= 7
+		mask = 1 << 7
 		r = &c.B
 	case 0xB9:
-		mask >>= 7
+		mask = 1 << 7
 		r = &c.C
 	case 0xBA:
-		mask >>= 7
+		mask = 1 << 7
 		r = &c.D
 	case 0xBB:
-		mask >>= 7
+		mask = 1 << 7
 		r = &c.E
 	case 0xBC:
-		mask >>= 7
+		mask = 1 << 7
 		r = &c.H
 	case 0xBD:
-		mask >>= 7
+		mask = 1 << 7
 		r = &c.L
 	case 0xBF:
-		mask >>= 7
+		mask = 1 << 7
 		r = &c.A
 	}
 
@@ -2758,8 +2798,8 @@ func (c *cpu) rrc_irr(opcode uint8, b bus) {
 	addr := uint16(c.H)<<8 | uint16(c.L)
 	v := b.read(addr)
 
-	carryOut := v & 0x01
-	v = v>>1 | carryOut<<7
+	carryOut := v & 0x01 << 7
+	v = v>>1 | carryOut
 
 	c.F.set(Z, v == 0)
 	c.F.set(N, false)
@@ -2796,8 +2836,8 @@ func (c *cpu) rrc_r(opcode uint8, b bus) {
 		r = &c.A
 	}
 
-	carryOut := *r & 0x01
-	*r = *r>>1 | carryOut<<7
+	carryOut := *r & 0x01 << 7
+	*r = *r>>1 | carryOut
 
 	c.F.set(Z, *r == 0)
 	c.F.set(N, false)

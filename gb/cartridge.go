@@ -70,6 +70,9 @@ func (c *cartridge) translateWrite(addr uint16) uint16 {
 }
 
 func (c *cartridge) read(addr uint16) uint8 {
+	if addr >= 0xA000 && addr <= 0xBFFF {
+		return 0
+	}
 	return c.rom.read(addr)
 }
 

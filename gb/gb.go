@@ -39,7 +39,12 @@ func New(r io.Reader, disasm bool) (*GameBoy, error) {
 
 	var cpu cpu
 	var ppu ppu
-	var apu apu
+	apu := apu{
+		p1:    &pulse{isPulse1: true},
+		p2:    &pulse{},
+		wave:  &wave{},
+		noise: &noise{},
+	}
 	var joypad joypad
 	var serial serial
 	var timer timer

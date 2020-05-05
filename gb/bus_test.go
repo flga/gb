@@ -37,6 +37,8 @@ func TestRamMap(t *testing.T) {
 
 	bus := mmu{
 		cpu:       &c,
+		apu:       &apu{},
+		ppu:       &ppu{},
 		wram:      make(memory, 8*KiB),
 		hram:      make(memory, 127),
 		cartridge: &cart,

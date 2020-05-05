@@ -111,6 +111,9 @@ func (p *ppu) clock(b bus) {
 }
 
 func (p *ppu) drawLine() {
+	if p.LCDC&lcdcDisplayEnable == 0 {
+		return
+	}
 	testPalette := [4]color.RGBA{
 		{0xFF, 0xFF, 0xFF, 0xFF},
 		{0xCC, 0xCC, 0xCC, 0xFF},
@@ -204,7 +207,7 @@ func (p *ppu) read(addr uint16) uint8 {
 		return p.Nametable1[addr-0x9800]
 	}
 	if addr >= 0x9C00 && addr <= 0x9FFF {
-		return p.Nametable2[addr-0x9800]
+		return p.Nametable2[addr-0x9C00]
 	}
 
 	if addr >= 0x8000 && addr <= 0x8FFF {

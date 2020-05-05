@@ -3,12 +3,22 @@ package gb
 import (
 	"fmt"
 	"io"
+	"strings"
 )
 
-func disassemble(pc uint16, bus bus, w io.Writer) {
-	fmt.Fprintf(w, "0x%04X: ", pc)
-	op := bus.peek(pc)
-	pc++
+var wroteHeader bool
+
+func disassemble(pc uint16, bus bus, A uint8, F cpuFlags, B, C, D, E, H, L uint8, SP uint16, w io.Writer) {
+	if !wroteHeader {
+		w.Write([]byte("[PC  ] op                [mem curval +-2] F    A  B  C  D  E  H  L  SP\n"))
+		wroteHeader = true
+	}
+	var (
+		firstColLen  = 24
+		secondColLen = 41
+		wrote        = 0
+	)
+
 	read16 := func() uint16 {
 		lo := bus.peek(pc)
 		pc++
@@ -26,531 +36,621 @@ func disassemble(pc uint16, bus bus, w io.Writer) {
 	readr8 := func() int8 {
 		return int8(read8())
 	}
+	write := func(s string) {
+		n, err := w.Write([]byte(s))
+		if err != nil {
+			panic(err)
+		}
+		wrote += n
+	}
+	writePeek := func(addr uint16) {
+		n, err := fmt.Fprintf(w, "%s[%02x %02x %02x %02x %02x]", strings.Repeat(" ", firstColLen-wrote), bus.peek(addr-2), bus.peek(addr-1), bus.peek(addr), bus.peek(addr+1), bus.peek(addr+2))
+		if err != nil {
+			panic(err)
+		}
+		wrote += n
+	}
+	writef8 := func(format string, v uint8) {
+		n, err := fmt.Fprintf(w, format, v)
+		if err != nil {
+			panic(err)
+		}
+		wrote += n
+	}
+	writefr8 := func(format string, v int8) {
+		n, err := fmt.Fprintf(w, format, v)
+		if err != nil {
+			panic(err)
+		}
+		wrote += n
+	}
+	writef16 := func(format string, v uint16) {
+		n, err := fmt.Fprintf(w, format, v)
+		if err != nil {
+			panic(err)
+		}
+		wrote += n
+	}
+
+	writef16("[%04X] ", pc)
+
+printInstr:
+	op := bus.peek(pc)
+	pc++
 
 	switch op {
 	// d16
 	case 0x01:
-		fmt.Fprintf(w, "LD BC,%04Xh\n", read16())
+		writef16("LD BC,%04Xh", read16())
 	case 0x11:
-		fmt.Fprintf(w, "LD DE,%04Xh\n", read16())
+		writef16("LD DE,%04Xh", read16())
 	case 0x21:
-		fmt.Fprintf(w, "LD HL,%04Xh\n", read16())
+		writef16("LD HL,%04Xh", read16())
 	case 0x31:
-		fmt.Fprintf(w, "LD SP,%04Xh\n", read16())
+		writef16("LD SP,%04Xh", read16())
 
 	// d8
 	case 0x06:
-		fmt.Fprintf(w, "LD B,%02Xh\n", read8())
+		writef8("LD B,%02Xh", read8())
 	case 0x0E:
-		fmt.Fprintf(w, "LD C,%02Xh\n", read8())
+		writef8("LD C,%02Xh", read8())
 	case 0x16:
-		fmt.Fprintf(w, "LD D,%02Xh\n", read8())
+		writef8("LD D,%02Xh", read8())
 	case 0x1E:
-		fmt.Fprintf(w, "LD E,%02Xh\n", read8())
+		writef8("LD E,%02Xh", read8())
 	case 0x26:
-		fmt.Fprintf(w, "LD H,%02Xh\n", read8())
+		writef8("LD H,%02Xh", read8())
 	case 0x2E:
-		fmt.Fprintf(w, "LD L,%02Xh\n", read8())
+		writef8("LD L,%02Xh", read8())
 	case 0x36:
-		fmt.Fprintf(w, "LD (HL),%02Xh\n", read8())
+		writef8("LD (HL),%02Xh", read8())
+		writePeek(uint16(H)<<8 | uint16(L))
 	case 0x3E:
-		fmt.Fprintf(w, "LD A,%02Xh\n", read8())
+		writef8("LD A,%02Xh", read8())
 	case 0xC6:
-		fmt.Fprintf(w, "ADD A,%02Xh\n", read8())
+		writef8("ADD A,%02Xh", read8())
 	case 0xCE:
-		fmt.Fprintf(w, "ADC A,%02Xh\n", read8())
+		writef8("ADC A,%02Xh", read8())
 	case 0xD6:
-		fmt.Fprintf(w, "SUB %02Xh\n", read8())
+		writef8("SUB %02Xh", read8())
 	case 0xDE:
-		fmt.Fprintf(w, "SBC A,%02Xh\n", read8())
+		writef8("SBC A,%02Xh", read8())
 	case 0xE6:
-		fmt.Fprintf(w, "AND %02Xh\n", read8())
+		writef8("AND %02Xh", read8())
 	case 0xEE:
-		fmt.Fprintf(w, "XOR %02Xh\n", read8())
+		writef8("XOR %02Xh", read8())
 	case 0xF6:
-		fmt.Fprintf(w, "OR %02Xh\n", read8())
+		writef8("OR %02Xh", read8())
 	case 0xFE:
-		fmt.Fprintf(w, "CP %02Xh\n", read8())
+		writef8("CP %02Xh", read8())
 
 	// (a8)
 	case 0xF0:
-		fmt.Fprintf(w, "LDH A,(%02Xh)\n", read8())
+		lo := read8()
+		writef8("LDH A,(%02Xh)", lo)
+		writePeek(0xFF00 | uint16(lo))
+
 	case 0xE0:
-		fmt.Fprintf(w, "LDH (%02Xh),A\n", read8())
+		lo := read8()
+		writef8("LDH (%02Xh),A", lo)
+		writePeek(0xFF | uint16(lo))
 
 	// (a16)
 	case 0x08:
-		fmt.Fprintf(w, "LD (%04Xh),SP\n", read16())
+		v := read16()
+		writef16("LD (%04Xh),SP", v)
+		writePeek(v)
 	case 0xEA:
-		fmt.Fprintf(w, "LD (%04Xh),A\n", read16())
+		v := read16()
+		writef16("LD (%04Xh),A", v)
+		writePeek(v)
 	case 0xFA:
-		fmt.Fprintf(w, "LD A,(%04Xh)\n", read16())
+		v := read16()
+		writef16("LD A,(%04Xh)", v)
+		writePeek(v)
 
 	// a16
 	case 0xC2:
-		fmt.Fprintf(w, "JP NZ,%04Xh\n", read16())
+		writef16("JP NZ,%04Xh", read16())
 	case 0xC3:
-		fmt.Fprintf(w, "JP %04Xh\n", read16())
+		writef16("JP %04Xh", read16())
 	case 0xC4:
-		fmt.Fprintf(w, "CALL NZ,%04Xh\n", read16())
+		writef16("CALL NZ,%04Xh", read16())
 	case 0xCA:
-		fmt.Fprintf(w, "JP Z,%04Xh\n", read16())
+		writef16("JP Z,%04Xh", read16())
 	case 0xCC:
-		fmt.Fprintf(w, "CALL Z,%04Xh\n", read16())
+		writef16("CALL Z,%04Xh", read16())
 	case 0xCD:
-		fmt.Fprintf(w, "CALL %04Xh\n", read16())
+		writef16("CALL %04Xh", read16())
 	case 0xD2:
-		fmt.Fprintf(w, "JP NC,%04Xh\n", read16())
+		writef16("JP NC,%04Xh", read16())
 	case 0xD4:
-		fmt.Fprintf(w, "CALL NC,%04Xh\n", read16())
+		writef16("CALL NC,%04Xh", read16())
 	case 0xDA:
-		fmt.Fprintf(w, "JP C,%04Xh\n", read16())
+		writef16("JP C,%04Xh", read16())
 	case 0xDC:
-		fmt.Fprintf(w, "CALL C,%04Xh\n", read16())
+		writef16("CALL C,%04Xh", read16())
 
 	// r8
 	case 0x18:
-		fmt.Fprintf(w, "JR %d\n", readr8())
+		writefr8("JR %d", readr8())
 	case 0x20:
-		fmt.Fprintf(w, "JR NZ,%d\n", readr8())
+		writefr8("JR NZ,%d", readr8())
 	case 0x28:
-		fmt.Fprintf(w, "JR Z,%d\n", readr8())
+		writefr8("JR Z,%d", readr8())
 	case 0x30:
-		fmt.Fprintf(w, "JR NC,%d\n", readr8())
+		writefr8("JR NC,%d", readr8())
 	case 0x38:
-		fmt.Fprintf(w, "JR C,%d\n", readr8())
+		writefr8("JR C,%d", readr8())
 	case 0xE8:
-		fmt.Fprintf(w, "ADD SP,%d\n", readr8())
+		writefr8("ADD SP,%d", readr8())
 	case 0xF8:
-		fmt.Fprintf(w, "LD HL,SP+%d\n", readr8())
+		writefr8("LD HL,SP+%d", readr8())
 
 	case 0x00:
-		w.Write([]byte("NOP\n"))
+		write("NOP")
 	case 0x02:
-		w.Write([]byte("LD (BC),A\n"))
+		write("LD (BC),A")
+		writePeek(uint16(B)<<8 | uint16(C))
 	case 0x03:
-		w.Write([]byte("INC BC\n"))
+		write("INC BC")
 	case 0x04:
-		w.Write([]byte("INC B\n"))
+		write("INC B")
 	case 0x05:
-		w.Write([]byte("DEC B\n"))
+		write("DEC B")
 	case 0x07:
-		w.Write([]byte("RLCA\n"))
+		write("RLCA")
 	case 0x09:
-		w.Write([]byte("ADD HL,BC\n"))
+		write("ADD HL,BC")
 	case 0x0A:
-		w.Write([]byte("LD A,(BC)\n"))
+		write("LD A,(BC)")
+		writePeek(uint16(B)<<8 | uint16(C))
 	case 0x0B:
-		w.Write([]byte("DEC BC\n"))
+		write("DEC BC")
 	case 0x0C:
-		w.Write([]byte("INC C\n"))
+		write("INC C")
 	case 0x0D:
-		w.Write([]byte("DEC C\n"))
+		write("DEC C")
 	case 0x0F:
-		w.Write([]byte("RRCA\n"))
+		write("RRCA")
 	case 0x10:
-		w.Write([]byte("STOP 0\n"))
+		write("STOP 0")
 	case 0x12:
-		w.Write([]byte("LD (DE),A\n"))
+		write("LD (DE),A")
+		writePeek(uint16(D)<<8 | uint16(E))
 	case 0x13:
-		w.Write([]byte("INC DE\n"))
+		write("INC DE")
 	case 0x14:
-		w.Write([]byte("INC D\n"))
+		write("INC D")
 	case 0x15:
-		w.Write([]byte("DEC D\n"))
+		write("DEC D")
 	case 0x17:
-		w.Write([]byte("RLA\n"))
+		write("RLA")
 	case 0x19:
-		w.Write([]byte("ADD HL,DE\n"))
+		write("ADD HL,DE")
 	case 0x1A:
-		w.Write([]byte("LD A,(DE)\n"))
+		write("LD A,(DE)")
+		writePeek(uint16(D)<<8 | uint16(E))
 	case 0x1B:
-		w.Write([]byte("DEC DE\n"))
+		write("DEC DE")
 	case 0x1C:
-		w.Write([]byte("INC E\n"))
+		write("INC E")
 	case 0x1D:
-		w.Write([]byte("DEC E\n"))
+		write("DEC E")
 	case 0x1F:
-		w.Write([]byte("RRA\n"))
+		write("RRA")
 	case 0x22:
-		w.Write([]byte("LD (HL+),A\n"))
+		write("LD (HL+),A")
+		writePeek(uint16(H)<<8 | uint16(L))
 	case 0x23:
-		w.Write([]byte("INC HL\n"))
+		write("INC HL")
 	case 0x24:
-		w.Write([]byte("INC H\n"))
+		write("INC H")
 	case 0x25:
-		w.Write([]byte("DEC H\n"))
+		write("DEC H")
 	case 0x27:
-		w.Write([]byte("DAA\n"))
+		write("DAA")
 	case 0x29:
-		w.Write([]byte("ADD HL,HL\n"))
+		write("ADD HL,HL")
 	case 0x2A:
-		w.Write([]byte("LD A,(HL+)\n"))
+		write("LD A,(HL+)")
+		writePeek(uint16(H)<<8 | uint16(L))
 	case 0x2B:
-		w.Write([]byte("DEC HL\n"))
+		write("DEC HL")
 	case 0x2C:
-		w.Write([]byte("INC L\n"))
+		write("INC L")
 	case 0x2D:
-		w.Write([]byte("DEC L\n"))
+		write("DEC L")
 	case 0x2F:
-		w.Write([]byte("CPL\n"))
+		write("CPL")
 	case 0x32:
-		w.Write([]byte("LD (HL-),A\n"))
+		write("LD (HL-),A")
+		writePeek(uint16(H)<<8 | uint16(L))
 	case 0x33:
-		w.Write([]byte("INC SP\n"))
+		write("INC SP")
 	case 0x34:
-		w.Write([]byte("INC (HL)\n"))
+		write("INC (HL)")
+		writePeek(uint16(H)<<8 | uint16(L))
 	case 0x35:
-		w.Write([]byte("DEC (HL)\n"))
+		write("DEC (HL)")
+		writePeek(uint16(H)<<8 | uint16(L))
 	case 0x37:
-		w.Write([]byte("SCF\n"))
+		write("SCF")
 	case 0x39:
-		w.Write([]byte("ADD HL,SP\n"))
+		write("ADD HL,SP")
 	case 0x3A:
-		w.Write([]byte("LD A,(HL-)\n"))
+		write("LD A,(HL-)")
+		writePeek(uint16(H)<<8 | uint16(L))
 	case 0x3B:
-		w.Write([]byte("DEC SP\n"))
+		write("DEC SP")
 	case 0x3C:
-		w.Write([]byte("INC A\n"))
+		write("INC A")
 	case 0x3D:
-		w.Write([]byte("DEC A\n"))
+		write("DEC A")
 	case 0x3F:
-		w.Write([]byte("CCF\n"))
+		write("CCF")
 	case 0x40:
-		w.Write([]byte("LD B,B\n"))
+		write("LD B,B")
 	case 0x41:
-		w.Write([]byte("LD B,C\n"))
+		write("LD B,C")
 	case 0x42:
-		w.Write([]byte("LD B,D\n"))
+		write("LD B,D")
 	case 0x43:
-		w.Write([]byte("LD B,E\n"))
+		write("LD B,E")
 	case 0x44:
-		w.Write([]byte("LD B,H\n"))
+		write("LD B,H")
 	case 0x45:
-		w.Write([]byte("LD B,L\n"))
+		write("LD B,L")
 	case 0x46:
-		w.Write([]byte("LD B,(HL)\n"))
+		write("LD B,(HL)")
+		writePeek(uint16(H)<<8 | uint16(L))
 	case 0x47:
-		w.Write([]byte("LD B,A\n"))
+		write("LD B,A")
 	case 0x48:
-		w.Write([]byte("LD C,B\n"))
+		write("LD C,B")
 	case 0x49:
-		w.Write([]byte("LD C,C\n"))
+		write("LD C,C")
 	case 0x4A:
-		w.Write([]byte("LD C,D\n"))
+		write("LD C,D")
 	case 0x4B:
-		w.Write([]byte("LD C,E\n"))
+		write("LD C,E")
 	case 0x4C:
-		w.Write([]byte("LD C,H\n"))
+		write("LD C,H")
 	case 0x4D:
-		w.Write([]byte("LD C,L\n"))
+		write("LD C,L")
 	case 0x4E:
-		w.Write([]byte("LD C,(HL)\n"))
+		write("LD C,(HL)")
+		writePeek(uint16(H)<<8 | uint16(L))
 	case 0x4F:
-		w.Write([]byte("LD C,A\n"))
+		write("LD C,A")
 	case 0x50:
-		w.Write([]byte("LD D,B\n"))
+		write("LD D,B")
 	case 0x51:
-		w.Write([]byte("LD D,C\n"))
+		write("LD D,C")
 	case 0x52:
-		w.Write([]byte("LD D,D\n"))
+		write("LD D,D")
 	case 0x53:
-		w.Write([]byte("LD D,E\n"))
+		write("LD D,E")
 	case 0x54:
-		w.Write([]byte("LD D,H\n"))
+		write("LD D,H")
 	case 0x55:
-		w.Write([]byte("LD D,L\n"))
+		write("LD D,L")
 	case 0x56:
-		w.Write([]byte("LD D,(HL)\n"))
+		write("LD D,(HL)")
+		writePeek(uint16(H)<<8 | uint16(L))
 	case 0x57:
-		w.Write([]byte("LD D,A\n"))
+		write("LD D,A")
 	case 0x58:
-		w.Write([]byte("LD E,B\n"))
+		write("LD E,B")
 	case 0x59:
-		w.Write([]byte("LD E,C\n"))
+		write("LD E,C")
 	case 0x5A:
-		w.Write([]byte("LD E,D\n"))
+		write("LD E,D")
 	case 0x5B:
-		w.Write([]byte("LD E,E\n"))
+		write("LD E,E")
 	case 0x5C:
-		w.Write([]byte("LD E,H\n"))
+		write("LD E,H")
 	case 0x5D:
-		w.Write([]byte("LD E,L\n"))
+		write("LD E,L")
 	case 0x5E:
-		w.Write([]byte("LD E,(HL)\n"))
+		write("LD E,(HL)")
+		writePeek(uint16(H)<<8 | uint16(L))
 	case 0x5F:
-		w.Write([]byte("LD E,A\n"))
+		write("LD E,A")
 	case 0x60:
-		w.Write([]byte("LD H,B\n"))
+		write("LD H,B")
 	case 0x61:
-		w.Write([]byte("LD H,C\n"))
+		write("LD H,C")
 	case 0x62:
-		w.Write([]byte("LD H,D\n"))
+		write("LD H,D")
 	case 0x63:
-		w.Write([]byte("LD H,E\n"))
+		write("LD H,E")
 	case 0x64:
-		w.Write([]byte("LD H,H\n"))
+		write("LD H,H")
 	case 0x65:
-		w.Write([]byte("LD H,L\n"))
+		write("LD H,L")
 	case 0x66:
-		w.Write([]byte("LD H,(HL)\n"))
+		write("LD H,(HL)")
+		writePeek(uint16(H)<<8 | uint16(L))
 	case 0x67:
-		w.Write([]byte("LD H,A\n"))
+		write("LD H,A")
 	case 0x68:
-		w.Write([]byte("LD L,B\n"))
+		write("LD L,B")
 	case 0x69:
-		w.Write([]byte("LD L,C\n"))
+		write("LD L,C")
 	case 0x6A:
-		w.Write([]byte("LD L,D\n"))
+		write("LD L,D")
 	case 0x6B:
-		w.Write([]byte("LD L,E\n"))
+		write("LD L,E")
 	case 0x6C:
-		w.Write([]byte("LD L,H\n"))
+		write("LD L,H")
 	case 0x6D:
-		w.Write([]byte("LD L,L\n"))
+		write("LD L,L")
 	case 0x6E:
-		w.Write([]byte("LD L,(HL)\n"))
+		write("LD L,(HL)")
+		writePeek(uint16(H)<<8 | uint16(L))
 	case 0x6F:
-		w.Write([]byte("LD L,A\n"))
+		write("LD L,A")
 	case 0x70:
-		w.Write([]byte("LD (HL),B\n"))
+		write("LD (HL),B")
+		writePeek(uint16(H)<<8 | uint16(L))
 	case 0x71:
-		w.Write([]byte("LD (HL),C\n"))
+		write("LD (HL),C")
+		writePeek(uint16(H)<<8 | uint16(L))
 	case 0x72:
-		w.Write([]byte("LD (HL),D\n"))
+		write("LD (HL),D")
+		writePeek(uint16(H)<<8 | uint16(L))
 	case 0x73:
-		w.Write([]byte("LD (HL),E\n"))
+		write("LD (HL),E")
+		writePeek(uint16(H)<<8 | uint16(L))
 	case 0x74:
-		w.Write([]byte("LD (HL),H\n"))
+		write("LD (HL),H")
+		writePeek(uint16(H)<<8 | uint16(L))
 	case 0x75:
-		w.Write([]byte("LD (HL),L\n"))
+		write("LD (HL),L")
+		writePeek(uint16(H)<<8 | uint16(L))
 	case 0x76:
-		w.Write([]byte("HALT\n"))
+		write("HALT")
 	case 0x77:
-		w.Write([]byte("LD (HL),A\n"))
+		write("LD (HL),A")
+		writePeek(uint16(H)<<8 | uint16(L))
 	case 0x78:
-		w.Write([]byte("LD A,B\n"))
+		write("LD A,B")
 	case 0x79:
-		w.Write([]byte("LD A,C\n"))
+		write("LD A,C")
 	case 0x7A:
-		w.Write([]byte("LD A,D\n"))
+		write("LD A,D")
 	case 0x7B:
-		w.Write([]byte("LD A,E\n"))
+		write("LD A,E")
 	case 0x7C:
-		w.Write([]byte("LD A,H\n"))
+		write("LD A,H")
 	case 0x7D:
-		w.Write([]byte("LD A,L\n"))
+		write("LD A,L")
 	case 0x7E:
-		w.Write([]byte("LD A,(HL)\n"))
+		write("LD A,(HL)")
+		writePeek(uint16(H)<<8 | uint16(L))
 	case 0x7F:
-		w.Write([]byte("LD A,A\n"))
+		write("LD A,A")
 	case 0x80:
-		w.Write([]byte("ADD A,B\n"))
+		write("ADD A,B")
 	case 0x81:
-		w.Write([]byte("ADD A,C\n"))
+		write("ADD A,C")
 	case 0x82:
-		w.Write([]byte("ADD A,D\n"))
+		write("ADD A,D")
 	case 0x83:
-		w.Write([]byte("ADD A,E\n"))
+		write("ADD A,E")
 	case 0x84:
-		w.Write([]byte("ADD A,H\n"))
+		write("ADD A,H")
 	case 0x85:
-		w.Write([]byte("ADD A,L\n"))
+		write("ADD A,L")
 	case 0x86:
-		w.Write([]byte("ADD A,(HL)\n"))
+		write("ADD A,(HL)")
+		writePeek(uint16(H)<<8 | uint16(L))
 	case 0x87:
-		w.Write([]byte("ADD A,A\n"))
+		write("ADD A,A")
 	case 0x88:
-		w.Write([]byte("ADC A,B\n"))
+		write("ADC A,B")
 	case 0x89:
-		w.Write([]byte("ADC A,C\n"))
+		write("ADC A,C")
 	case 0x8A:
-		w.Write([]byte("ADC A,D\n"))
+		write("ADC A,D")
 	case 0x8B:
-		w.Write([]byte("ADC A,E\n"))
+		write("ADC A,E")
 	case 0x8C:
-		w.Write([]byte("ADC A,H\n"))
+		write("ADC A,H")
 	case 0x8D:
-		w.Write([]byte("ADC A,L\n"))
+		write("ADC A,L")
 	case 0x8E:
-		w.Write([]byte("ADC A,(HL)\n"))
+		write("ADC A,(HL)")
+		writePeek(uint16(H)<<8 | uint16(L))
 	case 0x8F:
-		w.Write([]byte("ADC A,A\n"))
+		write("ADC A,A")
 	case 0x90:
-		w.Write([]byte("SUB B\n"))
+		write("SUB B")
 	case 0x91:
-		w.Write([]byte("SUB C\n"))
+		write("SUB C")
 	case 0x92:
-		w.Write([]byte("SUB D\n"))
+		write("SUB D")
 	case 0x93:
-		w.Write([]byte("SUB E\n"))
+		write("SUB E")
 	case 0x94:
-		w.Write([]byte("SUB H\n"))
+		write("SUB H")
 	case 0x95:
-		w.Write([]byte("SUB L\n"))
+		write("SUB L")
 	case 0x96:
-		w.Write([]byte("SUB (HL)\n"))
+		write("SUB (HL)")
+		writePeek(uint16(H)<<8 | uint16(L))
 	case 0x97:
-		w.Write([]byte("SUB A\n"))
+		write("SUB A")
 	case 0x98:
-		w.Write([]byte("SBC A,B\n"))
+		write("SBC A,B")
 	case 0x99:
-		w.Write([]byte("SBC A,C\n"))
+		write("SBC A,C")
 	case 0x9A:
-		w.Write([]byte("SBC A,D\n"))
+		write("SBC A,D")
 	case 0x9B:
-		w.Write([]byte("SBC A,E\n"))
+		write("SBC A,E")
 	case 0x9C:
-		w.Write([]byte("SBC A,H\n"))
+		write("SBC A,H")
 	case 0x9D:
-		w.Write([]byte("SBC A,L\n"))
+		write("SBC A,L")
 	case 0x9E:
-		w.Write([]byte("SBC A,(HL)\n"))
+		write("SBC A,(HL)")
+		writePeek(uint16(H)<<8 | uint16(L))
 	case 0x9F:
-		w.Write([]byte("SBC A,A\n"))
+		write("SBC A,A")
 	case 0xA0:
-		w.Write([]byte("AND B\n"))
+		write("AND B")
 	case 0xA1:
-		w.Write([]byte("AND C\n"))
+		write("AND C")
 	case 0xA2:
-		w.Write([]byte("AND D\n"))
+		write("AND D")
 	case 0xA3:
-		w.Write([]byte("AND E\n"))
+		write("AND E")
 	case 0xA4:
-		w.Write([]byte("AND H\n"))
+		write("AND H")
 	case 0xA5:
-		w.Write([]byte("AND L\n"))
+		write("AND L")
 	case 0xA6:
-		w.Write([]byte("AND (HL)\n"))
+		write("AND (HL)")
+		writePeek(uint16(H)<<8 | uint16(L))
 	case 0xA7:
-		w.Write([]byte("AND A\n"))
+		write("AND A")
 	case 0xA8:
-		w.Write([]byte("XOR B\n"))
+		write("XOR B")
 	case 0xA9:
-		w.Write([]byte("XOR C\n"))
+		write("XOR C")
 	case 0xAA:
-		w.Write([]byte("XOR D\n"))
+		write("XOR D")
 	case 0xAB:
-		w.Write([]byte("XOR E\n"))
+		write("XOR E")
 	case 0xAC:
-		w.Write([]byte("XOR H\n"))
+		write("XOR H")
 	case 0xAD:
-		w.Write([]byte("XOR L\n"))
+		write("XOR L")
 	case 0xAE:
-		w.Write([]byte("XOR (HL)\n"))
+		write("XOR (HL)")
+		writePeek(uint16(H)<<8 | uint16(L))
 	case 0xAF:
-		w.Write([]byte("XOR A\n"))
+		write("XOR A")
 	case 0xB0:
-		w.Write([]byte("OR B\n"))
+		write("OR B")
 	case 0xB1:
-		w.Write([]byte("OR C\n"))
+		write("OR C")
 	case 0xB2:
-		w.Write([]byte("OR D\n"))
+		write("OR D")
 	case 0xB3:
-		w.Write([]byte("OR E\n"))
+		write("OR E")
 	case 0xB4:
-		w.Write([]byte("OR H\n"))
+		write("OR H")
 	case 0xB5:
-		w.Write([]byte("OR L\n"))
+		write("OR L")
 	case 0xB6:
-		w.Write([]byte("OR (HL)\n"))
+		write("OR (HL)")
+		writePeek(uint16(H)<<8 | uint16(L))
 	case 0xB7:
-		w.Write([]byte("OR A\n"))
+		write("OR A")
 	case 0xB8:
-		w.Write([]byte("CP B\n"))
+		write("CP B")
 	case 0xB9:
-		w.Write([]byte("CP C\n"))
+		write("CP C")
 	case 0xBA:
-		w.Write([]byte("CP D\n"))
+		write("CP D")
 	case 0xBB:
-		w.Write([]byte("CP E\n"))
+		write("CP E")
 	case 0xBC:
-		w.Write([]byte("CP H\n"))
+		write("CP H")
 	case 0xBD:
-		w.Write([]byte("CP L\n"))
+		write("CP L")
 	case 0xBE:
-		w.Write([]byte("CP (HL)\n"))
+		write("CP (HL)")
+		writePeek(uint16(H)<<8 | uint16(L))
 	case 0xBF:
-		w.Write([]byte("CP A\n"))
+		write("CP A")
 	case 0xC0:
-		w.Write([]byte("RET NZ\n"))
+		write("RET NZ")
 	case 0xC1:
-		w.Write([]byte("POP BC\n"))
+		write("POP BC")
 	case 0xC5:
-		w.Write([]byte("PUSH BC\n"))
+		write("PUSH BC")
 	case 0xC7:
-		w.Write([]byte("RST 00H\n"))
+		write("RST 00H")
 	case 0xC8:
-		w.Write([]byte("RET Z\n"))
+		write("RET Z")
 	case 0xC9:
-		w.Write([]byte("RET\n"))
+		write("RET")
 	case 0xCB:
-		w.Write([]byte("PREFIX CB\n"))
+		write("CB ")
+		goto printInstr // :)
 	case 0xCF:
-		w.Write([]byte("RST 08H\n"))
+		write("RST 08H")
 	case 0xD0:
-		w.Write([]byte("RET NC\n"))
+		write("RET NC")
 	case 0xD1:
-		w.Write([]byte("POP DE\n"))
+		write("POP DE")
 	case 0xD3:
-		w.Write([]byte("ILLEGAL\n"))
+		write("ILLEGAL")
 	case 0xD5:
-		w.Write([]byte("PUSH DE\n"))
+		write("PUSH DE")
 	case 0xD7:
-		w.Write([]byte("RST 10H\n"))
+		write("RST 10H")
 	case 0xD8:
-		w.Write([]byte("RET C\n"))
+		write("RET C")
 	case 0xD9:
-		w.Write([]byte("RETI\n"))
+		write("RETI")
 	case 0xDB:
-		w.Write([]byte("ILLEGAL\n"))
+		write("ILLEGAL")
 	case 0xDD:
-		w.Write([]byte("ILLEGAL\n"))
+		write("ILLEGAL")
 	case 0xDF:
-		w.Write([]byte("RST 18H\n"))
+		write("RST 18H")
 	case 0xE1:
-		w.Write([]byte("POP HL\n"))
+		write("POP HL")
 	case 0xE2:
-		w.Write([]byte("LD (C),A\n"))
+		write("LD (C),A")
+		writePeek(0xFF00 | uint16(C))
 	case 0xE3:
-		w.Write([]byte("ILLEGAL\n"))
+		write("ILLEGAL")
 	case 0xE4:
-		w.Write([]byte("ILLEGAL\n"))
+		write("ILLEGAL")
 	case 0xE5:
-		w.Write([]byte("PUSH HL\n"))
+		write("PUSH HL")
 	case 0xE7:
-		w.Write([]byte("RST 20H\n"))
+		write("RST 20H")
 	case 0xE9:
-		w.Write([]byte("JP (HL)\n"))
+		write("JP (HL)")
+		writePeek(uint16(H)<<8 | uint16(L))
 	case 0xEB:
-		w.Write([]byte("ILLEGAL\n"))
+		write("ILLEGAL")
 	case 0xEC:
-		w.Write([]byte("ILLEGAL\n"))
+		write("ILLEGAL")
 	case 0xED:
-		w.Write([]byte("ILLEGAL\n"))
+		write("ILLEGAL")
 	case 0xEF:
-		w.Write([]byte("RST 28H\n"))
+		write("RST 28H")
 	case 0xF1:
-		w.Write([]byte("POP AF\n"))
+		write("POP AF")
 	case 0xF2:
-		w.Write([]byte("LD A,(C)\n"))
+		write("LD A,(C)")
+		writePeek(0xFF00 | uint16(C))
 	case 0xF3:
-		w.Write([]byte("DI\n"))
+		write("DI")
 	case 0xF4:
-		w.Write([]byte("ILLEGAL\n"))
+		write("ILLEGAL")
 	case 0xF5:
-		w.Write([]byte("PUSH AF\n"))
+		write("PUSH AF")
 	case 0xF7:
-		w.Write([]byte("RST 30H\n"))
+		write("RST 30H")
 	case 0xF9:
-		w.Write([]byte("LD SP,HL\n"))
+		write("LD SP,HL")
 	case 0xFB:
-		w.Write([]byte("EI\n"))
+		write("EI")
 	case 0xFC:
-		w.Write([]byte("ILLEGAL\n"))
+		write("ILLEGAL")
 	case 0xFD:
-		w.Write([]byte("ILLEGAL\n"))
+		write("ILLEGAL")
 	case 0xFF:
-		w.Write([]byte("RST 38H\n"))
+		write("RST 38H")
 	}
+	fmt.Fprintf(w, "%s %s %02x %02x %02x %02x %02x %02x %02x %04x\n", strings.Repeat(" ", secondColLen-wrote), F, A, B, C, D, E, H, L, SP)
 }

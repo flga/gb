@@ -1,6 +1,10 @@
 package gb
 
-import "fmt"
+type busDevice interface {
+	clock(b bus)
+	read(addr uint16) uint8
+	write(addr uint16, v uint8)
+}
 
 type joypad struct{}
 
@@ -40,7 +44,7 @@ type mmu struct {
 	ppu       *ppu
 	apu       *apu
 	joypad    *joypad
-	serial    *serial
+	serial    busDevice
 	timer     *timer
 	wram      memory
 	hram      memory
@@ -227,7 +231,8 @@ func (b *mmu) peek(addr uint16) uint8 {
 		return b.cpu.read(addr)
 	}
 
-	panic(fmt.Sprintf("unmapped read at 0%X", addr))
+	// panic(fmt.Sprintf("unmapped read at 0%X", addr))
+	return 0
 }
 
 func (b *mmu) read(addr uint16) uint8 {
@@ -392,7 +397,7 @@ func (b *mmu) poke(addr uint16, v uint8) {
 		return
 	}
 
-	panic(fmt.Sprintf("unmapped write at 0%X", addr))
+	// panic(fmt.Sprintf("unmapped write at 0%X", addr))
 }
 
 func (b *mmu) write(addr uint16, v uint8) {
