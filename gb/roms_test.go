@@ -10,7 +10,7 @@ type testSerialCtrl struct {
 	buf []byte
 }
 
-func (s *testSerialCtrl) clock(b bus)            {}
+func (s *testSerialCtrl) clock(gb *GameBoy)      {}
 func (s *testSerialCtrl) read(addr uint16) uint8 { return 0 }
 func (s *testSerialCtrl) write(addr uint16, v uint8) {
 	if addr != 0xFF01 {
@@ -54,23 +54,21 @@ func TestCpuInstr(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer f.Close()
-			gb, err := New(f, false)
+
+			cart, err := NewCartridge(f)
 			if err != nil {
 				t.Fatal(err)
 			}
 
+			gb := New(cart, false)
+
 			var ctrl testSerialCtrl
-			gb.bus.serial = &ctrl
+			gb.serial = &ctrl
 
-			count := 0
+			gb.PowerOn()
 
-			for {
-				count++
-				if count > 0xFFFFFF {
-					t.Fatal("timeout")
-				}
-
-				gb.Clock()
+			for gb.machineCycles < 0x1FFFFFF {
+				gb.ExecuteInst()
 
 				status := ctrl.passed()
 				switch status {
@@ -84,6 +82,8 @@ func TestCpuInstr(t *testing.T) {
 					return
 				}
 			}
+
+			t.Fatal("timeout")
 		})
 	}
 }

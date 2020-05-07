@@ -5,17 +5,17 @@ type apu struct {
 	OutputTerminal uint8 // 0xFF25 - NR51 - Selection of Sound output terminal (R/W)
 	OnOff          uint8 // 0xFF26 - NR52 - Sound on/off
 
-	p1    *pulse
-	p2    *pulse
-	wave  *wave
-	noise *noise
+	p1    pulse
+	p2    pulse
+	wave  wave
+	noise noise
 }
 
-func (a *apu) clock(b bus) {
-	a.p1.clock(b)
-	a.p2.clock(b)
-	a.wave.clock(b)
-	a.noise.clock(b)
+func (a *apu) clock(gb *GameBoy) {
+	a.p1.clock(gb)
+	a.p2.clock(gb)
+	a.wave.clock(gb)
+	a.noise.clock(gb)
 }
 
 func (a *apu) sample() float64 {
@@ -85,8 +85,8 @@ type pulse struct {
 	isPulse1 bool
 }
 
-func (p *pulse) clock(b bus)     {}
-func (p *pulse) sample() float64 { return 0 }
+func (p *pulse) clock(gb *GameBoy) {}
+func (p *pulse) sample() float64   { return 0 }
 
 func (p *pulse) read(addr uint16) uint8 {
 	if p.isPulse1 {
@@ -163,8 +163,8 @@ type wave struct {
 	Pattern     [16]uint8 // 0xFF30-0xFF3F - Wave Pattern RAM
 }
 
-func (w *wave) clock(b bus)     {}
-func (w *wave) sample() float64 { return 0 }
+func (w *wave) clock(gb *GameBoy) {}
+func (w *wave) sample() float64   { return 0 }
 
 func (w *wave) read(addr uint16) uint8 {
 	if addr >= 0xFF30 && addr <= 0xFF3F {
@@ -220,8 +220,8 @@ type noise struct {
 	CounterLoad    uint8 // 0xFF23 - NR44 - Channel 4 Counter/consecutive; Inital (R/W)
 }
 
-func (n *noise) clock(b bus)     {}
-func (n *noise) sample() float64 { return 0 }
+func (n *noise) clock(gb *GameBoy) {}
+func (n *noise) sample() float64   { return 0 }
 
 func (n *noise) read(addr uint16) uint8 {
 	switch addr {

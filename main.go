@@ -44,7 +44,7 @@ func run(romPath string, disasm bool) error {
 	window, err := sdl.CreateWindow(
 		"gb",
 		sdl.WINDOWPOS_UNDEFINED, sdl.WINDOWPOS_UNDEFINED,
-		160*8, 144*8,
+		160*4, 144*4,
 		sdl.WINDOW_SHOWN,
 	)
 	if err != nil {
@@ -66,11 +66,16 @@ func run(romPath string, disasm bool) error {
 		panic(err)
 	}
 
-	console, err := gb.New(rom, disasm)
+	cart, err := gb.NewCartridge(rom)
 	if err != nil {
 		return fmt.Errorf("could not load rom: %w", err)
 	}
+
+	console := gb.New(cart, disasm)
 	fmt.Println(console.CartridgeInfo())
+
+	console.PowerOn()
+
 	var frameNo uint64
 	_ = frameNo
 	running := true

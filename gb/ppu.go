@@ -56,7 +56,7 @@ type ppu struct {
 	clocks uint64
 }
 
-func (p *ppu) clock(b bus) {
+func (p *ppu) clock(gb *GameBoy) {
 	switch {
 	case p.LY >= 0 && p.LY <= 143:
 		// mode 2 (oam search)
@@ -77,8 +77,7 @@ func (p *ppu) clock(b bus) {
 		if p.clocks >= 252 && p.clocks <= 455 {
 			p.setMode(0)
 			if p.clocks == 252 && p.STAT&lcdStatHBlank > 0 {
-				iflag := interrupt(b.peek(0xFF0F)) // TODO: interrupt ctrl
-				b.poke(0xFF0F, uint8(iflag|intLCDc))
+				gb.interruptCtrl.raise(lcdStatInterrupt)
 			}
 		}
 
@@ -86,8 +85,7 @@ func (p *ppu) clock(b bus) {
 	case p.LY >= 144 && p.LY <= 153:
 		p.setMode(1)
 		if p.clocks == 0 && p.STAT&lcdStatVBlank > 0 {
-			iflag := interrupt(b.peek(0xFF0F)) // TODO: interrupt ctrl
-			b.poke(0xFF0F, uint8(iflag|intVBlank))
+			gb.interruptCtrl.raise(vblankInterrupt)
 		}
 	}
 
@@ -99,12 +97,10 @@ func (p *ppu) clock(b bus) {
 
 		if p.STAT&lcdStatCoincidenceInt > 0 {
 			if p.STAT&lcdStatCoincidenceFlag == 0 && p.LY != p.LYC {
-				iflag := interrupt(b.peek(0xFF0F)) // TODO: interrupt ctrl
-				b.poke(0xFF0F, uint8(iflag|intLCDc))
+				gb.interruptCtrl.raise(lcdStatInterrupt)
 			}
 			if p.STAT&lcdStatCoincidenceFlag == 1 && p.LY == p.LYC {
-				iflag := interrupt(b.peek(0xFF0F)) // TODO: interrupt ctrl
-				b.poke(0xFF0F, uint8(iflag|intLCDc))
+				gb.interruptCtrl.raise(lcdStatInterrupt)
 			}
 		}
 	}

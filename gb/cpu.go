@@ -1,11 +1,10 @@
 package gb
 
 import (
-	"fmt"
 	"os"
 )
 
-type op func(opcode uint8, b bus)
+type op func(opcode uint8, gb *GameBoy)
 
 const (
 	vectorVBlank uint16 = 0x40
@@ -13,16 +12,6 @@ const (
 	vectorSerial uint16 = 0x50
 	vectorTimer  uint16 = 0x58
 	vectorHTL    uint16 = 0x60
-)
-
-type interrupt uint8
-
-const (
-	intVBlank interrupt = 1 << iota
-	intLCDc
-	intTimerOverflow
-	intSerial
-	intHTL
 )
 
 type cpuState uint8
@@ -95,8 +84,6 @@ type cpu struct {
 	skipPCIncBug bool
 	scheduleIME  bool
 	IME          bool
-	IE           interrupt // TODO: move these out
-	IF           interrupt // TODO: move these out
 
 	state cpuState
 
@@ -155,12 +142,23 @@ func (c *cpu) init(pc uint16) {
 	}
 }
 
-func (c *cpu) clock(b bus) {
+func (c *cpu) readFrom(gb *GameBoy, addr uint16) uint8 {
+	v := gb.read(addr)
+	gb.clockCompensate()
+	return v
+}
+
+func (c *cpu) writeTo(gb *GameBoy, addr uint16, v uint8) {
+	gb.write(addr, v)
+	gb.clockCompensate()
+}
+
+func (c *cpu) clock(gb *GameBoy) {
 	switch c.state {
 	case run:
-		op := b.read(c.PC)
+		op := c.readFrom(gb, c.PC)
 		if c.disasm {
-			disassemble(c.PC, b, c.A, c.F, c.B, c.C, c.D, c.E, c.H, c.L, c.SP, os.Stdout)
+			disassemble(c.PC, gb, c.A, c.F, c.B, c.C, c.D, c.E, c.H, c.L, c.SP, os.Stdout)
 		}
 
 		if c.scheduleIME {
@@ -172,9 +170,9 @@ func (c *cpu) clock(b bus) {
 		} else {
 			c.PC++
 		}
-		c.table[op](op, b)
+		c.table[op](op, gb)
 
-		if c.IF&c.IE > 0 && c.IME {
+		if gb.interruptCtrl.raised(anyInterrupt) > 0 {
 			c.state = interruptDispatch
 		}
 	case interruptDispatch:
@@ -184,33 +182,33 @@ func (c *cpu) clock(b bus) {
 		c.IME = false
 
 		c.SP--
-		b.write(c.SP, uint8(c.PC>>8))
+		c.writeTo(gb, c.SP, uint8(c.PC>>8))
 		c.SP--
-		b.write(c.SP, uint8(c.PC&0xFF))
+		c.writeTo(gb, c.SP, uint8(c.PC&0xFF))
 
-		_ = b.read(0xFF0F) // TODO: we need this dummy IF read to trigger clock, IF should not be on the cpu
-		_ = b.read(0xFFFF) // TODO: we need this dummy IE read to trigger clock, IE should not be on the cpu
+		gb.clockCompensate()
+		gb.clockCompensate()
 
-		intType := c.IF & c.IE
+		intType := gb.interruptCtrl.raised(anyInterrupt)
 		if intType == 0 {
 			panic("no ints available")
 		}
 		switch {
-		case intType&intVBlank > 0:
+		case intType&vblankInterrupt > 0:
 			vector = vectorVBlank
-			c.IF &^= intVBlank
-		case intType&intLCDc > 0:
+			gb.interruptCtrl.ack(vblankInterrupt)
+		case intType&lcdStatInterrupt > 0:
 			vector = vectorLCDc
-			c.IF &^= intLCDc
-		case intType&intTimerOverflow > 0:
+			gb.interruptCtrl.ack(lcdStatInterrupt)
+		case intType&timerInterrupt > 0:
 			vector = vectorTimer
-			c.IF &^= intTimerOverflow
-		case intType&intSerial > 0:
+			gb.interruptCtrl.ack(timerInterrupt)
+		case intType&serialInterrupt > 0:
 			vector = vectorSerial
-			c.IF &^= intSerial
-		case intType&intHTL > 0:
+			gb.interruptCtrl.ack(serialInterrupt)
+		case intType&joypadInterrupt > 0:
 			vector = vectorHTL
-			c.IF &^= intHTL
+			gb.interruptCtrl.ack(joypadInterrupt)
 		}
 
 		c.PC = vector
@@ -219,54 +217,34 @@ func (c *cpu) clock(b bus) {
 	case halt:
 		switch c.IME {
 		case true:
-			if c.IF&c.IE > 0 {
+			if gb.interruptCtrl.raised(anyInterrupt) > 0 {
 				c.state = interruptDispatch
-				c.clock(b)
+				c.clock(gb)
+			} else {
+				gb.clockCompensate()
 			}
 
 		case false:
-			if c.IF&c.IE > 0 {
+			if gb.interruptCtrl.raised(anyInterrupt) > 0 {
 				c.IME = false
 
 				c.SP--
-				b.write(c.SP, uint8(c.PC>>8))
+				c.writeTo(gb, c.SP, uint8(c.PC>>8))
 				c.SP--
-				b.write(c.SP, uint8(c.PC&0xFF))
+				c.writeTo(gb, c.SP, uint8(c.PC&0xFF))
 
-				_ = b.read(0xFF0F) // TODO: we need this dummy IF read to trigger clock, IF should not be on the cpu
-				_ = b.read(0xFFFF) // TODO: we need this dummy IE read to trigger clock, IE should not be on the cpu
+				gb.clockCompensate()
+				gb.clockCompensate()
 
 				c.state = run
+			} else {
+				gb.clockCompensate()
 			}
 		}
 
 	case stop:
 		panic("not implemented")
 	}
-}
-
-func (c *cpu) read(addr uint16) uint8 {
-	switch addr {
-	case 0xFFFF:
-		return uint8(c.IE)
-	case 0xFF0F:
-		return uint8(c.IF)
-	}
-
-	panic(fmt.Sprintf("unhandled cpu read 0x%04X", addr))
-}
-
-func (c *cpu) write(addr uint16, v uint8) {
-	switch addr {
-	case 0xFFFF:
-		c.IE = interrupt(v)
-		return
-	case 0xFF0F:
-		c.IF = interrupt(v)
-		return
-	}
-
-	panic(fmt.Sprintf("unhandled cpu write 0x%04X: 0x%02X", addr, v))
 }
 
 func (c *cpu) cancelInterruptEffects() {
@@ -310,19 +288,19 @@ func (c *cpu) sub8(a, b uint8) uint8 {
 }
 
 // 0xCE ADC A,d8        2 8 0 Z 0 H C
-func (c *cpu) adc_r_d8(opcode uint8, b bus) {
-	v := b.read(c.PC)
+func (c *cpu) adc_r_d8(opcode uint8, gb *GameBoy) {
+	v := c.readFrom(gb, c.PC)
 	c.PC++
 
 	c.A = c.adc8(c.A, v)
 }
 
 // 0x8E ADC A,(HL)      1 8 0 Z 0 H C
-func (c *cpu) adc_r_irr(opcode uint8, b bus) {
+func (c *cpu) adc_r_irr(opcode uint8, gb *GameBoy) {
 	lo := uint16(c.L)
 	hi := uint16(c.H)
 	addr := hi<<8 | lo
-	v := b.read(addr)
+	v := c.readFrom(gb, addr)
 
 	c.A = c.adc8(c.A, v)
 }
@@ -334,7 +312,7 @@ func (c *cpu) adc_r_irr(opcode uint8, b bus) {
 // 0x8C ADC A,H 1 4 0 Z 0 H C
 // 0x8D ADC A,L 1 4 0 Z 0 H C
 // 0x8F ADC A,A 1 4 0 Z 0 H C
-func (c *cpu) adc_r_r(opcode uint8, b bus) {
+func (c *cpu) adc_r_r(opcode uint8, gb *GameBoy) {
 	var v uint8
 
 	switch opcode {
@@ -358,20 +336,20 @@ func (c *cpu) adc_r_r(opcode uint8, b bus) {
 }
 
 // 0xC6 ADD A,d8        2 8 0 Z 0 H C
-func (c *cpu) add_r_d8(opcode uint8, b bus) {
-	v := b.read(c.PC)
+func (c *cpu) add_r_d8(opcode uint8, gb *GameBoy) {
+	v := c.readFrom(gb, c.PC)
 	c.PC++
 
 	c.A = c.add8(c.A, v)
 }
 
 // 0x86 ADD A,(HL)      1 8 0 Z 0 H C
-func (c *cpu) add_r_irr(opcode uint8, b bus) {
+func (c *cpu) add_r_irr(opcode uint8, gb *GameBoy) {
 	lo := uint16(c.L)
 	hi := uint16(c.H)
 
 	addr := hi<<8 | lo
-	v := b.read(addr)
+	v := c.readFrom(gb, addr)
 
 	c.A = c.add8(c.A, v)
 }
@@ -383,7 +361,7 @@ func (c *cpu) add_r_irr(opcode uint8, b bus) {
 // 0x84 ADD A,H 1 4 0 Z 0 H C
 // 0x85 ADD A,L 1 4 0 Z 0 H C
 // 0x87 ADD A,A 1 4 0 Z 0 H C
-func (c *cpu) add_r_r(opcode uint8, b bus) {
+func (c *cpu) add_r_r(opcode uint8, gb *GameBoy) {
 	var v uint8
 
 	switch opcode {
@@ -409,7 +387,7 @@ func (c *cpu) add_r_r(opcode uint8, b bus) {
 // 0x09 ADD HL,BC       1 8 0 - 0 H C
 // 0x19 ADD HL,DE       1 8 0 - 0 H C
 // 0x29 ADD HL,HL       1 8 0 - 0 H C
-func (c *cpu) add_rr_rr(opcode uint8, b bus) {
+func (c *cpu) add_rr_rr(opcode uint8, gb *GameBoy) {
 	hl := uint16(c.H)<<8 | uint16(c.L)
 
 	var v uint16
@@ -431,11 +409,11 @@ func (c *cpu) add_rr_rr(opcode uint8, b bus) {
 	c.L = uint8(hl & 0xFF)
 	c.H = uint8(hl >> 8)
 
-	b.read(c.PC) // TODO: what actually gets read (or written)?
+	c.readFrom(gb, c.PC) // TODO: what actually gets read (or written)?
 }
 
 // 0x39 ADD HL,SP       1 8 0 - 0 H C
-func (c *cpu) add_rr_sp(opcode uint8, b bus) {
+func (c *cpu) add_rr_sp(opcode uint8, gb *GameBoy) {
 	hl := uint16(c.H)<<8 | uint16(c.L)
 	v := c.SP
 
@@ -448,12 +426,12 @@ func (c *cpu) add_rr_sp(opcode uint8, b bus) {
 	c.L = uint8(hl & 0xFF)
 	c.H = uint8(hl >> 8)
 
-	b.read(c.PC) // TODO: what actually gets read (or written)?
+	c.readFrom(gb, c.PC) // TODO: what actually gets read (or written)?
 }
 
 // 0xE8 ADD SP,r8       2 16 0 0 0 H C
-func (c *cpu) add_sp_r8(opcode uint8, b bus) {
-	r8 := b.read(c.PC)
+func (c *cpu) add_sp_r8(opcode uint8, gb *GameBoy) {
+	r8 := c.readFrom(gb, c.PC)
 	c.PC++
 
 	spl := uint8(c.SP & 0xFF)
@@ -477,13 +455,13 @@ func (c *cpu) add_sp_r8(opcode uint8, b bus) {
 	c.F.set(Z, false)
 	c.F.set(N, false)
 
-	b.read(c.PC) // TODO: what actually gets read (or written)?
-	b.read(c.PC) // TODO: what actually gets read (or written)?
+	c.readFrom(gb, c.PC) // TODO: what actually gets read (or written)?
+	c.readFrom(gb, c.PC) // TODO: what actually gets read (or written)?
 }
 
 // 0xE6 AND d8  2 8 0 Z 0 1 0
-func (c *cpu) and_d8(opcode uint8, b bus) {
-	v := b.read(c.PC)
+func (c *cpu) and_d8(opcode uint8, gb *GameBoy) {
+	v := c.readFrom(gb, c.PC)
 	c.PC++
 
 	c.A &= v
@@ -494,12 +472,12 @@ func (c *cpu) and_d8(opcode uint8, b bus) {
 }
 
 // 0xA6 AND (HL)        1 8 0 Z 0 1 0
-func (c *cpu) and_irr(opcode uint8, b bus) {
+func (c *cpu) and_irr(opcode uint8, gb *GameBoy) {
 	hi := uint16(c.H)
 	lo := uint16(c.L)
 
 	addr := hi<<8 | lo
-	v := b.read(addr)
+	v := c.readFrom(gb, addr)
 
 	c.A &= v
 	c.F.set(Z, c.A == 0)
@@ -515,7 +493,7 @@ func (c *cpu) and_irr(opcode uint8, b bus) {
 // 0xA4 AND H   1 4 0 Z 0 1 0
 // 0xA5 AND L   1 4 0 Z 0 1 0
 // 0xA7 AND A   1 4 0 Z 0 1 0
-func (c *cpu) and_r(opcode uint8, b bus) {
+func (c *cpu) and_r(opcode uint8, gb *GameBoy) {
 	var v uint8
 	switch opcode {
 	case 0xA0:
@@ -542,10 +520,10 @@ func (c *cpu) and_r(opcode uint8, b bus) {
 }
 
 // 0xD4 CALL NC,a16     3 24 12 - - - -
-func (c *cpu) call_NC_a16(opcode uint8, b bus) {
-	lo := uint16(b.read(c.PC))
+func (c *cpu) call_NC_a16(opcode uint8, gb *GameBoy) {
+	lo := uint16(c.readFrom(gb, c.PC))
 	c.PC++
-	hi := uint16(b.read(c.PC))
+	hi := uint16(c.readFrom(gb, c.PC))
 	c.PC++
 
 	if c.F.has(CY) {
@@ -553,19 +531,19 @@ func (c *cpu) call_NC_a16(opcode uint8, b bus) {
 	}
 
 	c.SP--
-	b.write(c.SP, uint8(c.PC>>8))
+	c.writeTo(gb, c.SP, uint8(c.PC>>8))
 	c.SP--
-	b.write(c.SP, uint8(c.PC&0xFF))
+	c.writeTo(gb, c.SP, uint8(c.PC&0xFF))
 
 	c.PC = hi<<8 | lo
-	b.read(c.PC) // TODO: what actually gets read (or written)?
+	c.readFrom(gb, c.PC) // TODO: what actually gets read (or written)?
 }
 
 // 0xC4 CALL NZ,a16     3 24 12 - - - -
-func (c *cpu) call_NZ_a16(opcode uint8, b bus) {
-	lo := uint16(b.read(c.PC))
+func (c *cpu) call_NZ_a16(opcode uint8, gb *GameBoy) {
+	lo := uint16(c.readFrom(gb, c.PC))
 	c.PC++
-	hi := uint16(b.read(c.PC))
+	hi := uint16(c.readFrom(gb, c.PC))
 	c.PC++
 
 	if c.F.has(Z) {
@@ -573,19 +551,19 @@ func (c *cpu) call_NZ_a16(opcode uint8, b bus) {
 	}
 
 	c.SP--
-	b.write(c.SP, uint8(c.PC>>8))
+	c.writeTo(gb, c.SP, uint8(c.PC>>8))
 	c.SP--
-	b.write(c.SP, uint8(c.PC&0xFF))
+	c.writeTo(gb, c.SP, uint8(c.PC&0xFF))
 
 	c.PC = hi<<8 | lo
-	b.read(c.PC) // TODO: what actually gets read (or written)?
+	c.readFrom(gb, c.PC) // TODO: what actually gets read (or written)?
 }
 
 // 0xCC CALL Z,a16      3 24 12 - - - -
-func (c *cpu) call_Z_a16(opcode uint8, b bus) {
-	lo := uint16(b.read(c.PC))
+func (c *cpu) call_Z_a16(opcode uint8, gb *GameBoy) {
+	lo := uint16(c.readFrom(gb, c.PC))
 	c.PC++
-	hi := uint16(b.read(c.PC))
+	hi := uint16(c.readFrom(gb, c.PC))
 	c.PC++
 
 	if !c.F.has(Z) {
@@ -593,35 +571,35 @@ func (c *cpu) call_Z_a16(opcode uint8, b bus) {
 	}
 
 	c.SP--
-	b.write(c.SP, uint8(c.PC>>8))
+	c.writeTo(gb, c.SP, uint8(c.PC>>8))
 	c.SP--
-	b.write(c.SP, uint8(c.PC&0xFF))
+	c.writeTo(gb, c.SP, uint8(c.PC&0xFF))
 
 	c.PC = hi<<8 | lo
-	b.read(c.PC) // TODO: what actually gets read (or written)?
+	c.readFrom(gb, c.PC) // TODO: what actually gets read (or written)?
 }
 
 // 0xCD CALL a16        3 24 0 - - - -
-func (c *cpu) call_a16(opcode uint8, b bus) {
-	lo := uint16(b.read(c.PC))
+func (c *cpu) call_a16(opcode uint8, gb *GameBoy) {
+	lo := uint16(c.readFrom(gb, c.PC))
 	c.PC++
-	hi := uint16(b.read(c.PC))
+	hi := uint16(c.readFrom(gb, c.PC))
 	c.PC++
 
 	c.SP--
-	b.write(c.SP, uint8(c.PC>>8))
+	c.writeTo(gb, c.SP, uint8(c.PC>>8))
 	c.SP--
-	b.write(c.SP, uint8(c.PC&0xFF))
+	c.writeTo(gb, c.SP, uint8(c.PC&0xFF))
 
 	c.PC = hi<<8 | lo
-	b.read(c.PC) // TODO: what actually gets read (or written)?
+	c.readFrom(gb, c.PC) // TODO: what actually gets read (or written)?
 }
 
 // 0xDC CALL C,a16      3 24 12 - - - -
-func (c *cpu) call_r_a16(opcode uint8, b bus) {
-	lo := uint16(b.read(c.PC))
+func (c *cpu) call_r_a16(opcode uint8, gb *GameBoy) {
+	lo := uint16(c.readFrom(gb, c.PC))
 	c.PC++
-	hi := uint16(b.read(c.PC))
+	hi := uint16(c.readFrom(gb, c.PC))
 	c.PC++
 
 	if !c.F.has(CY) {
@@ -629,16 +607,16 @@ func (c *cpu) call_r_a16(opcode uint8, b bus) {
 	}
 
 	c.SP--
-	b.write(c.SP, uint8(c.PC>>8))
+	c.writeTo(gb, c.SP, uint8(c.PC>>8))
 	c.SP--
-	b.write(c.SP, uint8(c.PC&0xFF))
+	c.writeTo(gb, c.SP, uint8(c.PC&0xFF))
 
 	c.PC = hi<<8 | lo
-	b.read(c.PC) // TODO: what actually gets read (or written)?
+	c.readFrom(gb, c.PC) // TODO: what actually gets read (or written)?
 }
 
 // 0x3F CCF     1 4 0 - 0 0 C
-func (c *cpu) ccf(opcode uint8, b bus) {
+func (c *cpu) ccf(opcode uint8, gb *GameBoy) {
 	c.F.set(N, false)
 	c.F.set(H, false)
 
@@ -650,8 +628,8 @@ func (c *cpu) ccf(opcode uint8, b bus) {
 }
 
 // 0xFE CP d8   2 8 0 Z 1 H C
-func (c *cpu) cp_d8(opcode uint8, b bus) {
-	v := b.read(c.PC)
+func (c *cpu) cp_d8(opcode uint8, gb *GameBoy) {
+	v := c.readFrom(gb, c.PC)
 	c.PC++
 
 	a := c.A
@@ -660,11 +638,11 @@ func (c *cpu) cp_d8(opcode uint8, b bus) {
 }
 
 // 0xBE CP (HL) 1 8 0 Z 1 H C
-func (c *cpu) cp_irr(opcode uint8, b bus) {
+func (c *cpu) cp_irr(opcode uint8, gb *GameBoy) {
 	lo := uint16(c.L)
 	hi := uint16(c.H)
 	addr := hi<<8 | lo
-	v := b.read(addr)
+	v := c.readFrom(gb, addr)
 
 	a := c.A
 	c.sub8(c.A, v)
@@ -678,7 +656,7 @@ func (c *cpu) cp_irr(opcode uint8, b bus) {
 // 0xBC CP H    1 4 0 Z 1 H C
 // 0xBD CP L    1 4 0 Z 1 H C
 // 0xBF CP A    1 4 0 Z 1 H C
-func (c *cpu) cp_r(opcode uint8, b bus) {
+func (c *cpu) cp_r(opcode uint8, gb *GameBoy) {
 	var v uint8
 	switch opcode {
 	case 0xB8:
@@ -703,14 +681,14 @@ func (c *cpu) cp_r(opcode uint8, b bus) {
 }
 
 // 0x2F CPL     1 4 0 - 1 1 -
-func (c *cpu) cpl(opcode uint8, b bus) {
+func (c *cpu) cpl(opcode uint8, gb *GameBoy) {
 	c.A = c.A ^ 0xFF
 	c.F.set(N, true)
 	c.F.set(H, true)
 }
 
 // 0x27 DAA     1 4 0 Z - 0 C
-func (c *cpu) daa(opcode uint8, b bus) {
+func (c *cpu) daa(opcode uint8, gb *GameBoy) {
 	if c.F.has(N) {
 		if c.F.has(CY) {
 			c.A -= 0x60
@@ -732,18 +710,18 @@ func (c *cpu) daa(opcode uint8, b bus) {
 }
 
 // 0x35 DEC (HL)        1 12 0 Z 1 H -
-func (c *cpu) dec_irr(opcode uint8, b bus) {
+func (c *cpu) dec_irr(opcode uint8, gb *GameBoy) {
 	lo := uint16(c.L)
 	hi := uint16(c.H)
 	addr := hi<<8 | lo
 
-	v := b.read(addr)
+	v := c.readFrom(gb, addr)
 
 	c.F.set(Z, v-1 == 0)
 	c.F.set(N, true)
 	c.F.set(H, v&0xF == 0)
 
-	b.write(addr, v-1)
+	c.writeTo(gb, addr, v-1)
 }
 
 // 0x05 DEC B   1 4 0 Z 1 H -
@@ -753,7 +731,7 @@ func (c *cpu) dec_irr(opcode uint8, b bus) {
 // 0x25 DEC H   1 4 0 Z 1 H -
 // 0x2D DEC L   1 4 0 Z 1 H -
 // 0x3D DEC A   1 4 0 Z 1 H -
-func (c *cpu) dec_r(opcode uint8, b bus) {
+func (c *cpu) dec_r(opcode uint8, gb *GameBoy) {
 	var r *uint8
 
 	switch opcode {
@@ -783,7 +761,7 @@ func (c *cpu) dec_r(opcode uint8, b bus) {
 // 0x0B DEC BC  1 8 0 - - - -
 // 0x1B DEC DE  1 8 0 - - - -
 // 0x2B DEC HL  1 8 0 - - - -
-func (c *cpu) dec_rr(opcode uint8, b bus) {
+func (c *cpu) dec_rr(opcode uint8, gb *GameBoy) {
 	var rrhi, rrlo *uint8
 
 	switch opcode {
@@ -803,28 +781,28 @@ func (c *cpu) dec_rr(opcode uint8, b bus) {
 	*rrhi = uint8(v >> 8)
 	*rrlo = uint8(v & 0xFF)
 
-	b.read(c.PC) // TODO: what actually gets read (or written)?
+	c.readFrom(gb, c.PC) // TODO: what actually gets read (or written)?
 }
 
 // 0x3B DEC SP  1 8 0 - - - -
-func (c *cpu) dec_sp(opcode uint8, b bus) {
+func (c *cpu) dec_sp(opcode uint8, gb *GameBoy) {
 	c.SP--
-	b.read(c.PC) // TODO: what actually gets read (or written)?
+	c.readFrom(gb, c.PC) // TODO: what actually gets read (or written)?
 }
 
 // 0xF3 DI      1 4 0 - - - -
-func (c *cpu) di(opcode uint8, b bus) {
+func (c *cpu) di(opcode uint8, gb *GameBoy) {
 	c.IME = false
 	c.cancelInterruptEffects()
 }
 
 // 0xFB EI      1 4 0 - - - -
-func (c *cpu) ei(opcode uint8, b bus) {
+func (c *cpu) ei(opcode uint8, gb *GameBoy) {
 	c.scheduleIME = true
 }
 
 // 0x76 HALT    1 4 0 - - - -
-func (c *cpu) halt(opcode uint8, b bus) {
+func (c *cpu) halt(opcode uint8, gb *GameBoy) {
 	// IME set
 	if c.IME {
 		c.state = halt
@@ -832,7 +810,7 @@ func (c *cpu) halt(opcode uint8, b bus) {
 	}
 
 	// Some pending
-	if c.IE&c.IF > 0 {
+	if gb.interruptCtrl.raised(anyInterrupt) > 0 {
 		c.skipPCIncBug = true
 		c.state = run
 		return
@@ -843,17 +821,17 @@ func (c *cpu) halt(opcode uint8, b bus) {
 }
 
 // 0x34 INC (HL)        1 12 0 Z 0 H -
-func (c *cpu) inc_irr(opcode uint8, b bus) {
+func (c *cpu) inc_irr(opcode uint8, gb *GameBoy) {
 	lo := uint16(c.L)
 	hi := uint16(c.H)
 	addr := hi<<8 | lo
-	v := b.read(addr)
+	v := c.readFrom(gb, addr)
 
 	c.F.set(Z, v+1 == 0)
 	c.F.set(N, false)
 	c.F.set(H, v&0xF == 0xF)
 
-	b.write(addr, v+1)
+	c.writeTo(gb, addr, v+1)
 }
 
 // 0x04 INC B   1 4 0 Z 0 H -
@@ -863,7 +841,7 @@ func (c *cpu) inc_irr(opcode uint8, b bus) {
 // 0x24 INC H   1 4 0 Z 0 H -
 // 0x2C INC L   1 4 0 Z 0 H -
 // 0x3C INC A   1 4 0 Z 0 H -
-func (c *cpu) inc_r(opcode uint8, b bus) {
+func (c *cpu) inc_r(opcode uint8, gb *GameBoy) {
 	var r *uint8
 
 	switch opcode {
@@ -893,7 +871,7 @@ func (c *cpu) inc_r(opcode uint8, b bus) {
 // 0x03 INC BC  1 8 0 - - - -
 // 0x13 INC DE  1 8 0 - - - -
 // 0x23 INC HL  1 8 0 - - - -
-func (c *cpu) inc_rr(opcode uint8, b bus) {
+func (c *cpu) inc_rr(opcode uint8, gb *GameBoy) {
 	var rrhi, rrlo *uint8
 
 	switch opcode {
@@ -913,20 +891,20 @@ func (c *cpu) inc_rr(opcode uint8, b bus) {
 	*rrhi = uint8(v >> 8)
 	*rrlo = uint8(v & 0xFF)
 
-	b.read(c.PC) // TODO: what actually gets read (or written)?
+	c.readFrom(gb, c.PC) // TODO: what actually gets read (or written)?
 }
 
 // 0x33 INC SP  1 8 0 - - - -
-func (c *cpu) inc_sp(opcode uint8, b bus) {
+func (c *cpu) inc_sp(opcode uint8, gb *GameBoy) {
 	c.SP++
-	b.read(c.SP) // TODO: what actually gets read (or written)?
+	c.readFrom(gb, c.SP) // TODO: what actually gets read (or written)?
 }
 
 // 0xD2 JP NC,a16       3 16 12 - - - -
-func (c *cpu) jp_NC_a16(opcode uint8, b bus) {
-	lo := uint16(b.read(c.PC))
+func (c *cpu) jp_NC_a16(opcode uint8, gb *GameBoy) {
+	lo := uint16(c.readFrom(gb, c.PC))
 	c.PC++
-	hi := uint16(b.read(c.PC))
+	hi := uint16(c.readFrom(gb, c.PC))
 	c.PC++
 
 	if c.F.has(CY) {
@@ -934,14 +912,14 @@ func (c *cpu) jp_NC_a16(opcode uint8, b bus) {
 	}
 
 	c.PC = hi<<8 | lo
-	b.read(c.PC) // TODO: what actually gets read (or written)?
+	c.readFrom(gb, c.PC) // TODO: what actually gets read (or written)?
 }
 
 // 0xC2 JP NZ,a16       3 16 12 - - - -
-func (c *cpu) jp_NZ_a16(opcode uint8, b bus) {
-	lo := uint16(b.read(c.PC))
+func (c *cpu) jp_NZ_a16(opcode uint8, gb *GameBoy) {
+	lo := uint16(c.readFrom(gb, c.PC))
 	c.PC++
-	hi := uint16(b.read(c.PC))
+	hi := uint16(c.readFrom(gb, c.PC))
 	c.PC++
 
 	if c.F.has(Z) {
@@ -949,14 +927,14 @@ func (c *cpu) jp_NZ_a16(opcode uint8, b bus) {
 	}
 
 	c.PC = hi<<8 | lo
-	b.read(c.PC) // TODO: what actually gets read (or written)?
+	c.readFrom(gb, c.PC) // TODO: what actually gets read (or written)?
 }
 
 // 0xCA JP Z,a16        3 16 12 - - - -
-func (c *cpu) jp_Z_a16(opcode uint8, b bus) {
-	lo := uint16(b.read(c.PC))
+func (c *cpu) jp_Z_a16(opcode uint8, gb *GameBoy) {
+	lo := uint16(c.readFrom(gb, c.PC))
 	c.PC++
-	hi := uint16(b.read(c.PC))
+	hi := uint16(c.readFrom(gb, c.PC))
 	c.PC++
 
 	if !c.F.has(Z) {
@@ -964,22 +942,22 @@ func (c *cpu) jp_Z_a16(opcode uint8, b bus) {
 	}
 
 	c.PC = hi<<8 | lo
-	b.read(c.PC) // TODO: what actually gets read (or written)? }
+	c.readFrom(gb, c.PC) // TODO: what actually gets read (or written)? }
 }
 
 // 0xC3 JP a16  3 16 0 - - - -
-func (c *cpu) jp_a16(opcode uint8, b bus) {
-	lo := uint16(b.read(c.PC))
+func (c *cpu) jp_a16(opcode uint8, gb *GameBoy) {
+	lo := uint16(c.readFrom(gb, c.PC))
 	c.PC++
-	hi := uint16(b.read(c.PC))
+	hi := uint16(c.readFrom(gb, c.PC))
 	c.PC++
 
 	c.PC = hi<<8 | lo
-	b.read(c.PC) // TODO: what actually gets read (or written)?
+	c.readFrom(gb, c.PC) // TODO: what actually gets read (or written)?
 }
 
 // 0xE9 JP (HL) 1 4 0 - - - -
-func (c *cpu) jp_irr(opcode uint8, b bus) {
+func (c *cpu) jp_irr(opcode uint8, gb *GameBoy) {
 	lo := uint16(c.L)
 	hi := uint16(c.H)
 
@@ -987,10 +965,10 @@ func (c *cpu) jp_irr(opcode uint8, b bus) {
 }
 
 // 0xDA JP C,a16        3 16 12 - - - -
-func (c *cpu) jp_r_a16(opcode uint8, b bus) {
-	lo := uint16(b.read(c.PC))
+func (c *cpu) jp_r_a16(opcode uint8, gb *GameBoy) {
+	lo := uint16(c.readFrom(gb, c.PC))
 	c.PC++
-	hi := uint16(b.read(c.PC))
+	hi := uint16(c.readFrom(gb, c.PC))
 	c.PC++
 
 	if !c.F.has(CY) {
@@ -998,12 +976,12 @@ func (c *cpu) jp_r_a16(opcode uint8, b bus) {
 	}
 
 	c.PC = hi<<8 | lo
-	b.read(c.PC) // TODO: what actually gets read (or written)? }
+	c.readFrom(gb, c.PC) // TODO: what actually gets read (or written)? }
 }
 
 // 0x30 JR NC,r8        2 12 8 - - - -
-func (c *cpu) jr_NC_r8(opcode uint8, b bus) {
-	r8 := uint16(int8(b.read(c.PC)))
+func (c *cpu) jr_NC_r8(opcode uint8, gb *GameBoy) {
+	r8 := uint16(int8(c.readFrom(gb, c.PC)))
 	c.PC++
 
 	if c.F.has(CY) {
@@ -1011,12 +989,12 @@ func (c *cpu) jr_NC_r8(opcode uint8, b bus) {
 	}
 
 	c.PC += r8
-	b.read(c.PC) // TODO: what actually gets read (or written)? }
+	c.readFrom(gb, c.PC) // TODO: what actually gets read (or written)? }
 }
 
 // 0x20 JR NZ,r8        2 12 8 - - - -
-func (c *cpu) jr_NZ_r8(opcode uint8, b bus) {
-	r8 := uint16(int8(b.read(c.PC)))
+func (c *cpu) jr_NZ_r8(opcode uint8, gb *GameBoy) {
+	r8 := uint16(int8(c.readFrom(gb, c.PC)))
 	c.PC++
 
 	if c.F.has(Z) {
@@ -1024,12 +1002,12 @@ func (c *cpu) jr_NZ_r8(opcode uint8, b bus) {
 	}
 
 	c.PC += r8
-	b.read(c.PC) // TODO: what actually gets read (or written)? }
+	c.readFrom(gb, c.PC) // TODO: what actually gets read (or written)? }
 }
 
 // 0x28 JR Z,r8 2 12 8 - - - -
-func (c *cpu) jr_Z_r8(opcode uint8, b bus) {
-	r8 := uint16(int8(b.read(c.PC)))
+func (c *cpu) jr_Z_r8(opcode uint8, gb *GameBoy) {
+	r8 := uint16(int8(c.readFrom(gb, c.PC)))
 	c.PC++
 
 	if !c.F.has(Z) {
@@ -1037,21 +1015,21 @@ func (c *cpu) jr_Z_r8(opcode uint8, b bus) {
 	}
 
 	c.PC += uint16(r8)
-	b.read(c.PC) // TODO: what actually gets read (or written)? } }
+	c.readFrom(gb, c.PC) // TODO: what actually gets read (or written)? } }
 }
 
 // 0x18 JR r8   2 12 0 - - - -
-func (c *cpu) jr_r8(opcode uint8, b bus) {
-	r8 := uint16(int8(b.read(c.PC)))
+func (c *cpu) jr_r8(opcode uint8, gb *GameBoy) {
+	r8 := uint16(int8(c.readFrom(gb, c.PC)))
 	c.PC++
 
 	c.PC += r8
-	b.read(c.PC) // TODO: what actually gets read (or written)? }
+	c.readFrom(gb, c.PC) // TODO: what actually gets read (or written)? }
 }
 
 // 0x38 JR C,r8 2 12 8 - - - -
-func (c *cpu) jr_r_r8(opcode uint8, b bus) {
-	r8 := uint16(int8(b.read(c.PC)))
+func (c *cpu) jr_r_r8(opcode uint8, gb *GameBoy) {
+	r8 := uint16(int8(c.readFrom(gb, c.PC)))
 	c.PC++
 
 	if !c.F.has(CY) {
@@ -1059,14 +1037,14 @@ func (c *cpu) jr_r_r8(opcode uint8, b bus) {
 	}
 
 	c.PC += uint16(r8)
-	b.read(c.PC) // TODO: what actually gets read (or written)? } }
+	c.readFrom(gb, c.PC) // TODO: what actually gets read (or written)? } }
 }
 
 // 0x22 LD (HL+),A      1 8 0 - - - -
 // 0x32 LD (HL-),A      1 8 0 - - - -
-func (c *cpu) ld_hlid_r(opcode uint8, b bus) {
+func (c *cpu) ld_hlid_r(opcode uint8, gb *GameBoy) {
 	addr := uint16(c.H)<<8 | uint16(c.L)
-	b.write(addr, c.A)
+	c.writeTo(gb, addr, c.A)
 
 	switch opcode {
 	case 0x22:
@@ -1079,40 +1057,40 @@ func (c *cpu) ld_hlid_r(opcode uint8, b bus) {
 }
 
 // 0xEA LD (a16),A      3 16 0 - - - -
-func (c *cpu) ld_ia16_r(opcode uint8, b bus) {
-	lo := uint16(b.read(c.PC))
+func (c *cpu) ld_ia16_r(opcode uint8, gb *GameBoy) {
+	lo := uint16(c.readFrom(gb, c.PC))
 	c.PC++
-	hi := uint16(b.read(c.PC))
+	hi := uint16(c.readFrom(gb, c.PC))
 	c.PC++
 
 	addr := hi<<8 | lo
-	b.write(addr, c.A)
+	c.writeTo(gb, addr, c.A)
 }
 
 // 0x08 LD (a16),SP     3 20 0 - - - -
-func (c *cpu) ld_ia16_sp(opcode uint8, b bus) {
-	lo := uint16(b.read(c.PC))
+func (c *cpu) ld_ia16_sp(opcode uint8, gb *GameBoy) {
+	lo := uint16(c.readFrom(gb, c.PC))
 	c.PC++
-	hi := uint16(b.read(c.PC))
+	hi := uint16(c.readFrom(gb, c.PC))
 	c.PC++
 
 	addr := hi<<8 | lo
-	b.write(addr, uint8(c.SP&0xFF))
-	b.write(addr+1, uint8(c.SP>>8))
+	c.writeTo(gb, addr, uint8(c.SP&0xFF))
+	c.writeTo(gb, addr+1, uint8(c.SP>>8))
 }
 
 // 0xE2 LD (C),A        2 8 0 - - - -
-func (c *cpu) ld_ir_r(opcode uint8, b bus) {
-	b.write(0xFF00+uint16(c.C), c.A)
+func (c *cpu) ld_ir_r(opcode uint8, gb *GameBoy) {
+	c.writeTo(gb, 0xFF00+uint16(c.C), c.A)
 }
 
 // 0x36 LD (HL),d8      2 12 0 - - - -
-func (c *cpu) ld_irr_d8(opcode uint8, b bus) {
-	d8 := b.read(c.PC)
+func (c *cpu) ld_irr_d8(opcode uint8, gb *GameBoy) {
+	d8 := c.readFrom(gb, c.PC)
 	c.PC++
 
 	addr := uint16(c.H)<<8 | uint16(c.L)
-	b.write(addr, d8)
+	c.writeTo(gb, addr, d8)
 }
 
 // 0x02 LD (BC),A       1 8 0 - - - -
@@ -1124,7 +1102,7 @@ func (c *cpu) ld_irr_d8(opcode uint8, b bus) {
 // 0x74 LD (HL),H       1 8 0 - - - -
 // 0x75 LD (HL),L       1 8 0 - - - -
 // 0x77 LD (HL),A       1 8 0 - - - -
-func (c *cpu) ld_irr_r(opcode uint8, b bus) {
+func (c *cpu) ld_irr_r(opcode uint8, gb *GameBoy) {
 	var irrhi, irrlo, r *uint8
 
 	switch opcode {
@@ -1170,14 +1148,14 @@ func (c *cpu) ld_irr_r(opcode uint8, b bus) {
 	hi := uint16(*irrhi)
 	v := *r
 	addr := hi<<8 | lo
-	b.write(addr, v)
+	c.writeTo(gb, addr, v)
 }
 
 // 0x2A LD A,(HL+)      1 8 0 - - - -
 // 0x3A LD A,(HL-)      1 8 0 - - - -
-func (c *cpu) ld_r_hlid(opcode uint8, b bus) {
+func (c *cpu) ld_r_hlid(opcode uint8, gb *GameBoy) {
 	addr := uint16(c.H)<<8 | uint16(c.L)
-	c.A = b.read(addr)
+	c.A = c.readFrom(gb, addr)
 
 	switch opcode {
 	case 0x2A:
@@ -1197,8 +1175,8 @@ func (c *cpu) ld_r_hlid(opcode uint8, b bus) {
 // 0x26 LD H,d8 2 8 0 - - - -
 // 0x2E LD L,d8 2 8 0 - - - -
 // 0x3E LD A,d8 2 8 0 - - - -
-func (c *cpu) ld_r_d8(opcode uint8, b bus) {
-	d8 := b.read(c.PC)
+func (c *cpu) ld_r_d8(opcode uint8, gb *GameBoy) {
+	d8 := c.readFrom(gb, c.PC)
 	c.PC++
 
 	var r *uint8
@@ -1223,19 +1201,19 @@ func (c *cpu) ld_r_d8(opcode uint8, b bus) {
 }
 
 // 0xFA LD A,(a16)      3 16 0 - - - -
-func (c *cpu) ld_r_ia16(opcode uint8, b bus) {
-	lo := uint16(b.read(c.PC))
+func (c *cpu) ld_r_ia16(opcode uint8, gb *GameBoy) {
+	lo := uint16(c.readFrom(gb, c.PC))
 	c.PC++
-	hi := uint16(b.read(c.PC))
+	hi := uint16(c.readFrom(gb, c.PC))
 	c.PC++
 
 	addr := hi<<8 | lo
-	c.A = b.read(addr)
+	c.A = c.readFrom(gb, addr)
 }
 
 // 0xF2 LD A,(C)        2 8 0 - - - -
-func (c *cpu) ld_r_ir(opcode uint8, b bus) {
-	c.A = b.read(0xFF00 + uint16(c.C))
+func (c *cpu) ld_r_ir(opcode uint8, gb *GameBoy) {
+	c.A = c.readFrom(gb, 0xFF00+uint16(c.C))
 }
 
 // 0x0A LD A,(BC)       1 8 0 - - - -
@@ -1247,7 +1225,7 @@ func (c *cpu) ld_r_ir(opcode uint8, b bus) {
 // 0x66 LD H,(HL)       1 8 0 - - - -
 // 0x6E LD L,(HL)       1 8 0 - - - -
 // 0x7E LD A,(HL)       1 8 0 - - - -
-func (c *cpu) ld_r_irr(opcode uint8, b bus) {
+func (c *cpu) ld_r_irr(opcode uint8, gb *GameBoy) {
 	var r, irrhi, irrlo *uint8
 
 	switch opcode {
@@ -1292,7 +1270,7 @@ func (c *cpu) ld_r_irr(opcode uint8, b bus) {
 	lo := uint16(*irrlo)
 	hi := uint16(*irrhi)
 	addr := hi<<8 | lo
-	*r = b.read(addr)
+	*r = c.readFrom(gb, addr)
 }
 
 // 0x40 LD B,B  1 4 0 - - - -
@@ -1344,7 +1322,7 @@ func (c *cpu) ld_r_irr(opcode uint8, b bus) {
 // 0x7C LD A,H  1 4 0 - - - -
 // 0x7D LD A,L  1 4 0 - - - -
 // 0x7F LD A,A  1 4 0 - - - -
-func (c *cpu) ld_r_r(opcode uint8, b bus) {
+func (c *cpu) ld_r_r(opcode uint8, gb *GameBoy) {
 	var r1, r2 *uint8
 
 	switch opcode {
@@ -1501,8 +1479,8 @@ func (c *cpu) ld_r_r(opcode uint8, b bus) {
 }
 
 // 0xF8 LD HL,SP+r8     2 12 0 0 0 H C
-func (c *cpu) ld_rr_SP_r8(opcode uint8, b bus) {
-	r8 := b.read(c.PC)
+func (c *cpu) ld_rr_SP_r8(opcode uint8, gb *GameBoy) {
+	r8 := c.readFrom(gb, c.PC)
 	c.PC++
 
 	spl := uint8(c.SP & 0xFF)
@@ -1528,13 +1506,13 @@ func (c *cpu) ld_rr_SP_r8(opcode uint8, b bus) {
 	c.L = spl
 	c.H = sph
 
-	b.read(c.PC) // TODO: what actually gets read (or written)?
+	c.readFrom(gb, c.PC) // TODO: what actually gets read (or written)?
 }
 
 // 0x01 LD BC,d16       3 12 0 - - - -
 // 0x11 LD DE,d16       3 12 0 - - - -
 // 0x21 LD HL,d16       3 12 0 - - - -
-func (c *cpu) ld_rr_d16(opcode uint8, b bus) {
+func (c *cpu) ld_rr_d16(opcode uint8, gb *GameBoy) {
 	var rrhi, rrlo *uint8
 
 	switch opcode {
@@ -1549,48 +1527,48 @@ func (c *cpu) ld_rr_d16(opcode uint8, b bus) {
 		rrlo = &c.L
 	}
 
-	*rrlo = b.read(c.PC)
+	*rrlo = c.readFrom(gb, c.PC)
 	c.PC++
-	*rrhi = b.read(c.PC)
+	*rrhi = c.readFrom(gb, c.PC)
 	c.PC++
 }
 
 // 0x31 LD SP,d16       3 12 0 - - - -
-func (c *cpu) ld_sp_d16(opcode uint8, b bus) {
-	lo := uint16(b.read(c.PC))
+func (c *cpu) ld_sp_d16(opcode uint8, gb *GameBoy) {
+	lo := uint16(c.readFrom(gb, c.PC))
 	c.PC++
-	hi := uint16(b.read(c.PC))
+	hi := uint16(c.readFrom(gb, c.PC))
 	c.PC++
 
 	c.SP = hi<<8 | lo
 }
 
 // 0xF9 LD SP,HL        1 8 0 - - - -
-func (c *cpu) ld_sp_rr(opcode uint8, b bus) {
+func (c *cpu) ld_sp_rr(opcode uint8, gb *GameBoy) {
 	c.SP = uint16(c.H)<<8 | uint16(c.L)
-	b.read(c.PC) // TODO: what actually gets read (or written)?
+	c.readFrom(gb, c.PC) // TODO: what actually gets read (or written)?
 }
 
 // 0xE0 LDH (a8),A      2 12 0 - - - -
-func (c *cpu) ldh_ia8_r(opcode uint8, b bus) {
-	a8 := b.read(c.PC)
+func (c *cpu) ldh_ia8_r(opcode uint8, gb *GameBoy) {
+	a8 := c.readFrom(gb, c.PC)
 	c.PC++
-	b.write(0xFF00|uint16(a8), c.A)
+	c.writeTo(gb, 0xFF00|uint16(a8), c.A)
 }
 
 // 0xF0 LDH A,(a8)      2 12 0 - - - -
-func (c *cpu) ldh_r_ia8(opcode uint8, b bus) {
-	a8 := b.read(c.PC)
+func (c *cpu) ldh_r_ia8(opcode uint8, gb *GameBoy) {
+	a8 := c.readFrom(gb, c.PC)
 	c.PC++
-	c.A = b.read(0xFF00 | uint16(a8))
+	c.A = c.readFrom(gb, 0xFF00|uint16(a8))
 }
 
 // 0x00 NOP     1 4 0 - - - -
-func (c *cpu) nop(opcode uint8, b bus) {}
+func (c *cpu) nop(opcode uint8, gb *GameBoy) {}
 
 // 0xF6 OR d8   2 8 0 Z 0 0 0
-func (c *cpu) or_d8(opcode uint8, b bus) {
-	v := b.read(c.PC)
+func (c *cpu) or_d8(opcode uint8, gb *GameBoy) {
+	v := c.readFrom(gb, c.PC)
 	c.PC++
 
 	c.A |= v
@@ -1601,11 +1579,11 @@ func (c *cpu) or_d8(opcode uint8, b bus) {
 }
 
 // 0xB6 OR (HL) 1 8 0 Z 0 0 0
-func (c *cpu) or_irr(opcode uint8, b bus) {
+func (c *cpu) or_irr(opcode uint8, gb *GameBoy) {
 	lo := uint16(c.L)
 	hi := uint16(c.H)
 	addr := hi<<8 | lo
-	v := b.read(addr)
+	v := c.readFrom(gb, addr)
 
 	c.A |= v
 	c.F.set(Z, c.A == 0)
@@ -1621,7 +1599,7 @@ func (c *cpu) or_irr(opcode uint8, b bus) {
 // 0xB4 OR H    1 4 0 Z 0 0 0
 // 0xB5 OR L    1 4 0 Z 0 0 0
 // 0xB7 OR A    1 4 0 Z 0 0 0
-func (c *cpu) or_r(opcode uint8, b bus) {
+func (c *cpu) or_r(opcode uint8, gb *GameBoy) {
 	var v uint8
 	switch opcode {
 	case 0xB0:
@@ -1651,7 +1629,7 @@ func (c *cpu) or_r(opcode uint8, b bus) {
 // 0xD1 POP DE  1 12 0 - - - -
 // 0xE1 POP HL  1 12 0 - - - -
 // 0xF1 POP AF  1 12 0 Z N H C
-func (c *cpu) pop_rr(opcode uint8, b bus) {
+func (c *cpu) pop_rr(opcode uint8, gb *GameBoy) {
 	var rrhi, rrlo *uint8
 	var isf bool
 	switch opcode {
@@ -1670,27 +1648,27 @@ func (c *cpu) pop_rr(opcode uint8, b bus) {
 		isf = true
 	}
 
-	*rrlo = b.read(c.SP)
+	*rrlo = c.readFrom(gb, c.SP)
 	if isf {
 		*rrlo &= 0xF0
 	}
 	c.SP++
-	*rrhi = b.read(c.SP)
+	*rrhi = c.readFrom(gb, c.SP)
 	c.SP++
 }
 
 // 0xCB PREFIX CB       1 4 0 - - - -
-func (c *cpu) prefix(opcode uint8, b bus) {
-	op := b.read(c.PC)
+func (c *cpu) prefix(opcode uint8, gb *GameBoy) {
+	op := c.readFrom(gb, c.PC)
 	c.PC++
-	c.cbTable[op](op, b)
+	c.cbTable[op](op, gb)
 }
 
 // 0xC5 PUSH BC 1 16 0 - - - -
 // 0xD5 PUSH DE 1 16 0 - - - -
 // 0xE5 PUSH HL 1 16 0 - - - -
 // 0xF5 PUSH AF 1 16 0 - - - -
-func (c *cpu) push_rr(opcode uint8, b bus) {
+func (c *cpu) push_rr(opcode uint8, gb *GameBoy) {
 	var rrhi, rrlo *uint8
 
 	switch opcode {
@@ -1708,113 +1686,113 @@ func (c *cpu) push_rr(opcode uint8, b bus) {
 		rrlo = (*uint8)(&c.F)
 	}
 
-	b.read(c.SP) // TODO: what actually gets read (or written)?
+	c.readFrom(gb, c.SP) // TODO: what actually gets read (or written)?
 
 	c.SP--
-	b.write(c.SP, *rrhi)
+	c.writeTo(gb, c.SP, *rrhi)
 	c.SP--
-	b.write(c.SP, *rrlo)
+	c.writeTo(gb, c.SP, *rrlo)
 }
 
 // 0xC9 RET     1 16 0 - - - -
-func (c *cpu) ret(opcode uint8, b bus) {
-	lo := uint16(b.read(c.SP))
+func (c *cpu) ret(opcode uint8, gb *GameBoy) {
+	lo := uint16(c.readFrom(gb, c.SP))
 	c.SP++
-	hi := uint16(b.read(c.SP))
+	hi := uint16(c.readFrom(gb, c.SP))
 	c.SP++
 
 	c.PC = hi<<8 | lo
 
-	b.read(c.PC) // TODO: what actually gets read (or written)?
+	c.readFrom(gb, c.PC) // TODO: what actually gets read (or written)?
 }
 
 // 0xD0 RET NC  1 20 8 - - - -
-func (c *cpu) ret_NC(opcode uint8, b bus) {
-	b.read(c.PC) // TODO: what actually gets read (or written)?
+func (c *cpu) ret_NC(opcode uint8, gb *GameBoy) {
+	c.readFrom(gb, c.PC) // TODO: what actually gets read (or written)?
 
 	if c.F.has(CY) {
 		return
 	}
 
-	lo := uint16(b.read(c.SP))
+	lo := uint16(c.readFrom(gb, c.SP))
 	c.SP++
-	hi := uint16(b.read(c.SP))
+	hi := uint16(c.readFrom(gb, c.SP))
 	c.SP++
 
 	c.PC = hi<<8 | lo
 
-	b.read(c.PC) // TODO: what actually gets read (or written)?
+	c.readFrom(gb, c.PC) // TODO: what actually gets read (or written)?
 }
 
 // 0xC0 RET NZ  1 20 8 - - - -
-func (c *cpu) ret_NZ(opcode uint8, b bus) {
-	b.read(c.PC) // TODO: what actually gets read (or written)?
+func (c *cpu) ret_NZ(opcode uint8, gb *GameBoy) {
+	c.readFrom(gb, c.PC) // TODO: what actually gets read (or written)?
 
 	if c.F.has(Z) {
 		return
 	}
 
-	lo := uint16(b.read(c.SP))
+	lo := uint16(c.readFrom(gb, c.SP))
 	c.SP++
-	hi := uint16(b.read(c.SP))
+	hi := uint16(c.readFrom(gb, c.SP))
 	c.SP++
 
 	c.PC = hi<<8 | lo
 
-	b.read(c.PC) // TODO: what actually gets read (or written)?
+	c.readFrom(gb, c.PC) // TODO: what actually gets read (or written)?
 }
 
 // 0xC8 RET Z   1 20 8 - - - -
-func (c *cpu) ret_Z(opcode uint8, b bus) {
-	b.read(c.PC) // TODO: what actually gets read (or written)?
+func (c *cpu) ret_Z(opcode uint8, gb *GameBoy) {
+	c.readFrom(gb, c.PC) // TODO: what actually gets read (or written)?
 
 	if !c.F.has(Z) {
 		return
 	}
 
-	lo := uint16(b.read(c.SP))
+	lo := uint16(c.readFrom(gb, c.SP))
 	c.SP++
-	hi := uint16(b.read(c.SP))
+	hi := uint16(c.readFrom(gb, c.SP))
 	c.SP++
 
 	c.PC = hi<<8 | lo
 
-	b.read(c.PC) // TODO: what actually gets read (or written)? }
+	c.readFrom(gb, c.PC) // TODO: what actually gets read (or written)? }
 }
 
 // 0xD8 RET C   1 20 8 - - - -
-func (c *cpu) ret_r(opcode uint8, b bus) {
-	b.read(c.PC) // TODO: what actually gets read (or written)?
+func (c *cpu) ret_r(opcode uint8, gb *GameBoy) {
+	c.readFrom(gb, c.PC) // TODO: what actually gets read (or written)?
 
 	if !c.F.has(CY) {
 		return
 	}
 
-	lo := uint16(b.read(c.SP))
+	lo := uint16(c.readFrom(gb, c.SP))
 	c.SP++
-	hi := uint16(b.read(c.SP))
+	hi := uint16(c.readFrom(gb, c.SP))
 	c.SP++
 
 	c.PC = hi<<8 | lo
 
-	b.read(c.PC) // TODO: what actually gets read (or written)?
+	c.readFrom(gb, c.PC) // TODO: what actually gets read (or written)?
 }
 
 // 0xD9 RETI    1 16 0 - - - -
-func (c *cpu) reti(opcode uint8, b bus) {
-	lo := uint16(b.read(c.SP))
+func (c *cpu) reti(opcode uint8, gb *GameBoy) {
+	lo := uint16(c.readFrom(gb, c.SP))
 	c.SP++
-	hi := uint16(b.read(c.SP))
+	hi := uint16(c.readFrom(gb, c.SP))
 	c.SP++
 
 	c.PC = hi<<8 | lo
 	c.IME = true
 
-	b.read(c.PC) // TODO: what actually gets read (or written)?
+	c.readFrom(gb, c.PC) // TODO: what actually gets read (or written)?
 }
 
 // 0x17 RLA     1 4 0 0 0 0 C
-func (c *cpu) rla(opcode uint8, b bus) {
+func (c *cpu) rla(opcode uint8, gb *GameBoy) {
 	var carryIn uint8
 	if c.F.has(CY) {
 		carryIn = 1
@@ -1829,7 +1807,7 @@ func (c *cpu) rla(opcode uint8, b bus) {
 }
 
 // 0x07 RLCA    1 4 0 0 0 0 C
-func (c *cpu) rlca(opcode uint8, b bus) {
+func (c *cpu) rlca(opcode uint8, gb *GameBoy) {
 	carryOut := c.A & 0x80 >> 7
 	c.A = c.A<<1 | carryOut
 
@@ -1840,7 +1818,7 @@ func (c *cpu) rlca(opcode uint8, b bus) {
 }
 
 // 0x1F RRA     1 4 0 0 0 0 C
-func (c *cpu) rra(opcode uint8, b bus) {
+func (c *cpu) rra(opcode uint8, gb *GameBoy) {
 	var carryIn uint8
 	if c.F.has(CY) {
 		carryIn = 1 << 7
@@ -1856,7 +1834,7 @@ func (c *cpu) rra(opcode uint8, b bus) {
 }
 
 // 0x0F RRCA    1 4 0 0 0 0 C
-func (c *cpu) rrca(opcode uint8, b bus) {
+func (c *cpu) rrca(opcode uint8, gb *GameBoy) {
 	carryOut := c.A & 0x1 << 7
 	c.A = c.A>>1 | carryOut
 
@@ -1874,7 +1852,7 @@ func (c *cpu) rrca(opcode uint8, b bus) {
 // 0xEF RST 28H 1 16 0 - - - -
 // 0xF7 RST 30H 1 16 0 - - - -
 // 0xFF RST 38H 1 16 0 - - - -
-func (c *cpu) rst(opcode uint8, b bus) {
+func (c *cpu) rst(opcode uint8, gb *GameBoy) {
 	var addr uint16
 
 	switch opcode {
@@ -1896,32 +1874,32 @@ func (c *cpu) rst(opcode uint8, b bus) {
 		addr = 0x38
 	}
 
-	_ = b.read(c.SP)
+	_ = c.readFrom(gb, c.SP)
 
 	c.SP--
-	b.write(c.SP, uint8(c.PC>>8))
+	c.writeTo(gb, c.SP, uint8(c.PC>>8))
 	c.SP--
-	b.write(c.SP, uint8(c.PC&0xFF))
+	c.writeTo(gb, c.SP, uint8(c.PC&0xFF))
 
 	c.PC = uint16(addr)
 }
 
-func (c *cpu) illegal(opcode uint8, b bus) { panic("illegal") }
+func (c *cpu) illegal(opcode uint8, gb *GameBoy) { panic("illegal") }
 
 // 0xDE SBC A,d8        2 8 0 Z 1 H C
-func (c *cpu) sbc_r_d8(opcode uint8, b bus) {
-	v := b.read(c.PC)
+func (c *cpu) sbc_r_d8(opcode uint8, gb *GameBoy) {
+	v := c.readFrom(gb, c.PC)
 	c.PC++
 
 	c.A = c.sbc8(c.A, v)
 }
 
 // 0x9E SBC A,(HL)      1 8 0 Z 1 H C
-func (c *cpu) sbc_r_irr(opcode uint8, b bus) {
+func (c *cpu) sbc_r_irr(opcode uint8, gb *GameBoy) {
 	lo := uint16(c.L)
 	hi := uint16(c.H)
 	addr := hi<<8 | lo
-	v := b.read(addr)
+	v := c.readFrom(gb, addr)
 
 	c.A = c.sbc8(c.A, v)
 }
@@ -1933,7 +1911,7 @@ func (c *cpu) sbc_r_irr(opcode uint8, b bus) {
 // 0x9C SBC A,H 1 4 0 Z 1 H C
 // 0x9D SBC A,L 1 4 0 Z 1 H C
 // 0x9F SBC A,A 1 4 0 Z 1 H C
-func (c *cpu) sbc_r_r(opcode uint8, b bus) {
+func (c *cpu) sbc_r_r(opcode uint8, gb *GameBoy) {
 	var v uint8
 	switch opcode {
 	case 0x98:
@@ -1956,31 +1934,31 @@ func (c *cpu) sbc_r_r(opcode uint8, b bus) {
 }
 
 // 0x37 SCF     1 4 0 - 0 0 1
-func (c *cpu) scf(opcode uint8, b bus) {
+func (c *cpu) scf(opcode uint8, gb *GameBoy) {
 	c.F.set(N, false)
 	c.F.set(H, false)
 	c.F.set(CY, true)
 }
 
 // 0x10 STOP 0  2 4 0 - - - -
-func (c *cpu) stop(opcode uint8, b bus) {
+func (c *cpu) stop(opcode uint8, gb *GameBoy) {
 	panic("stop")
 }
 
 // 0xD6 SUB d8  2 8 0 Z 1 H C
-func (c *cpu) sub_d8(opcode uint8, b bus) {
-	v := b.read(c.PC)
+func (c *cpu) sub_d8(opcode uint8, gb *GameBoy) {
+	v := c.readFrom(gb, c.PC)
 	c.PC++
 
 	c.A = c.sub8(c.A, v)
 }
 
 // 0x96 SUB (HL)        1 8 0 Z 1 H C
-func (c *cpu) sub_irr(opcode uint8, b bus) {
+func (c *cpu) sub_irr(opcode uint8, gb *GameBoy) {
 	lo := uint16(c.L)
 	hi := uint16(c.H)
 	addr := hi<<8 | lo
-	v := b.read(addr)
+	v := c.readFrom(gb, addr)
 
 	c.A = c.sub8(c.A, v)
 }
@@ -1992,7 +1970,7 @@ func (c *cpu) sub_irr(opcode uint8, b bus) {
 // 0x94 SUB H   1 4 0 Z 1 H C
 // 0x95 SUB L   1 4 0 Z 1 H C
 // 0x97 SUB A   1 4 0 Z 1 H C
-func (c *cpu) sub_r(opcode uint8, b bus) {
+func (c *cpu) sub_r(opcode uint8, gb *GameBoy) {
 	var v uint8
 	switch opcode {
 	case 0x90:
@@ -2015,8 +1993,8 @@ func (c *cpu) sub_r(opcode uint8, b bus) {
 }
 
 // 0xEE XOR d8  2 8 0 Z 0 0 0
-func (c *cpu) xor_d8(opcode uint8, b bus) {
-	v := b.read(c.PC)
+func (c *cpu) xor_d8(opcode uint8, gb *GameBoy) {
+	v := c.readFrom(gb, c.PC)
 	c.PC++
 
 	c.A = c.A ^ v
@@ -2027,11 +2005,11 @@ func (c *cpu) xor_d8(opcode uint8, b bus) {
 }
 
 // 0xAE XOR (HL)        1 8 0 Z 0 0 0
-func (c *cpu) xor_irr(opcode uint8, b bus) {
+func (c *cpu) xor_irr(opcode uint8, gb *GameBoy) {
 	lo := uint16(c.L)
 	hi := uint16(c.H)
 	addr := hi<<8 | lo
-	v := b.read(addr)
+	v := c.readFrom(gb, addr)
 
 	c.A = c.A ^ v
 	c.F.set(Z, c.A == 0)
@@ -2047,7 +2025,7 @@ func (c *cpu) xor_irr(opcode uint8, b bus) {
 // 0xAC XOR H   1 4 0 Z 0 0 0
 // 0xAD XOR L   1 4 0 Z 0 0 0
 // 0xAF XOR A   1 4 0 Z 0 0 0
-func (c *cpu) xor_r(opcode uint8, b bus) {
+func (c *cpu) xor_r(opcode uint8, gb *GameBoy) {
 	var v uint8
 	switch opcode {
 	case 0xA8:
@@ -2081,9 +2059,9 @@ func (c *cpu) xor_r(opcode uint8, b bus) {
 // 0x6E BIT 5,(HL)      2 16 0 Z 0 1 -
 // 0x76 BIT 6,(HL)      2 16 0 Z 0 1 -
 // 0x7E BIT 7,(HL)      2 16 0 Z 0 1 -
-func (c *cpu) bit_irr(opcode uint8, b bus) {
+func (c *cpu) bit_irr(opcode uint8, gb *GameBoy) {
 	addr := uint16(c.H)<<8 | uint16(c.L)
-	v := b.read(addr)
+	v := c.readFrom(gb, addr)
 	var mask uint8
 
 	switch opcode {
@@ -2109,7 +2087,7 @@ func (c *cpu) bit_irr(opcode uint8, b bus) {
 	c.F.set(N, false)
 	c.F.set(H, true)
 
-	_ = b.read(c.PC)
+	_ = c.readFrom(gb, c.PC)
 }
 
 // 0x40 BIT 0,B 2 8 0 Z 0 1 -
@@ -2168,7 +2146,7 @@ func (c *cpu) bit_irr(opcode uint8, b bus) {
 // 0x7C BIT 7,H 2 8 0 Z 0 1 -
 // 0x7D BIT 7,L 2 8 0 Z 0 1 -
 // 0x7F BIT 7,A 2 8 0 Z 0 1 -
-func (c *cpu) bit_r(opcode uint8, b bus) {
+func (c *cpu) bit_r(opcode uint8, gb *GameBoy) {
 	var v uint8
 	var mask uint8
 
@@ -2357,9 +2335,9 @@ func (c *cpu) bit_r(opcode uint8, b bus) {
 // 0xAE RES 5,(HL)      2 16 0 - - - -
 // 0xB6 RES 6,(HL)      2 16 0 - - - -
 // 0xBE RES 7,(HL)      2 16 0 - - - -
-func (c *cpu) res_irr(opcode uint8, b bus) {
+func (c *cpu) res_irr(opcode uint8, gb *GameBoy) {
 	addr := uint16(c.H)<<8 | uint16(c.L)
-	v := b.read(addr)
+	v := c.readFrom(gb, addr)
 	var mask uint8
 
 	switch opcode {
@@ -2382,7 +2360,7 @@ func (c *cpu) res_irr(opcode uint8, b bus) {
 	}
 
 	v &^= mask
-	b.write(addr, v)
+	c.writeTo(gb, addr, v)
 }
 
 // 0x80 RES 0,B 2 8 0 - - - -
@@ -2441,7 +2419,7 @@ func (c *cpu) res_irr(opcode uint8, b bus) {
 // 0xBC RES 7,H 2 8 0 - - - -
 // 0xBD RES 7,L 2 8 0 - - - -
 // 0xBF RES 7,A 2 8 0 - - - -
-func (c *cpu) res_r(opcode uint8, b bus) {
+func (c *cpu) res_r(opcode uint8, gb *GameBoy) {
 	var r *uint8
 	var mask uint8
 
@@ -2621,9 +2599,9 @@ func (c *cpu) res_r(opcode uint8, b bus) {
 }
 
 // 0x16 RL (HL) 2 16 0 Z 0 0 C
-func (c *cpu) rl_irr(opcode uint8, b bus) {
+func (c *cpu) rl_irr(opcode uint8, gb *GameBoy) {
 	addr := uint16(c.H)<<8 | uint16(c.L)
-	v := b.read(addr)
+	v := c.readFrom(gb, addr)
 
 	carryOut := v & 0x80
 	var carryIn uint8
@@ -2638,7 +2616,7 @@ func (c *cpu) rl_irr(opcode uint8, b bus) {
 	c.F.set(H, false)
 	c.F.set(CY, carryOut > 0)
 
-	b.write(addr, v)
+	c.writeTo(gb, addr, v)
 }
 
 // 0x10 RL B    2 8 0 Z 0 0 C
@@ -2648,7 +2626,7 @@ func (c *cpu) rl_irr(opcode uint8, b bus) {
 // 0x14 RL H    2 8 0 Z 0 0 C
 // 0x15 RL L    2 8 0 Z 0 0 C
 // 0x17 RL A    2 8 0 Z 0 0 C
-func (c *cpu) rl_r(opcode uint8, b bus) {
+func (c *cpu) rl_r(opcode uint8, gb *GameBoy) {
 	var r *uint8
 
 	switch opcode {
@@ -2683,9 +2661,9 @@ func (c *cpu) rl_r(opcode uint8, b bus) {
 }
 
 // 0x06 RLC (HL)        2 16 0 Z 0 0 C
-func (c *cpu) rlc_irr(opcode uint8, b bus) {
+func (c *cpu) rlc_irr(opcode uint8, gb *GameBoy) {
 	addr := uint16(c.H)<<8 | uint16(c.L)
-	v := b.read(addr)
+	v := c.readFrom(gb, addr)
 
 	carryOut := v & 0x80 >> 7
 	v = v<<1 | carryOut
@@ -2694,7 +2672,7 @@ func (c *cpu) rlc_irr(opcode uint8, b bus) {
 	c.F.set(N, false)
 	c.F.set(H, false)
 	c.F.set(CY, carryOut > 0)
-	b.write(addr, v)
+	c.writeTo(gb, addr, v)
 }
 
 // 0x00 RLC B   2 8 0 Z 0 0 C
@@ -2704,7 +2682,7 @@ func (c *cpu) rlc_irr(opcode uint8, b bus) {
 // 0x04 RLC H   2 8 0 Z 0 0 C
 // 0x05 RLC L   2 8 0 Z 0 0 C
 // 0x07 RLC A   2 8 0 Z 0 0 C
-func (c *cpu) rlc_r(opcode uint8, b bus) {
+func (c *cpu) rlc_r(opcode uint8, gb *GameBoy) {
 	var r *uint8
 
 	switch opcode {
@@ -2734,9 +2712,9 @@ func (c *cpu) rlc_r(opcode uint8, b bus) {
 }
 
 // 0x1E RR (HL) 2 16 0 Z 0 0 C
-func (c *cpu) rr_irr(opcode uint8, b bus) {
+func (c *cpu) rr_irr(opcode uint8, gb *GameBoy) {
 	addr := uint16(c.H)<<8 | uint16(c.L)
-	v := b.read(addr)
+	v := c.readFrom(gb, addr)
 
 	carryOut := v & 0x01
 	var carryIn uint8
@@ -2750,7 +2728,7 @@ func (c *cpu) rr_irr(opcode uint8, b bus) {
 	c.F.set(H, false)
 	c.F.set(CY, carryOut > 0)
 
-	b.write(addr, v)
+	c.writeTo(gb, addr, v)
 }
 
 // 0x18 RR B    2 8 0 Z 0 0 C
@@ -2760,7 +2738,7 @@ func (c *cpu) rr_irr(opcode uint8, b bus) {
 // 0x1C RR H    2 8 0 Z 0 0 C
 // 0x1D RR L    2 8 0 Z 0 0 C
 // 0x1F RR A    2 8 0 Z 0 0 C
-func (c *cpu) rr_r(opcode uint8, b bus) {
+func (c *cpu) rr_r(opcode uint8, gb *GameBoy) {
 	var r *uint8
 
 	switch opcode {
@@ -2794,9 +2772,9 @@ func (c *cpu) rr_r(opcode uint8, b bus) {
 }
 
 // 0x0E RRC (HL)        2 16 0 Z 0 0 C
-func (c *cpu) rrc_irr(opcode uint8, b bus) {
+func (c *cpu) rrc_irr(opcode uint8, gb *GameBoy) {
 	addr := uint16(c.H)<<8 | uint16(c.L)
-	v := b.read(addr)
+	v := c.readFrom(gb, addr)
 
 	carryOut := v & 0x01 << 7
 	v = v>>1 | carryOut
@@ -2806,7 +2784,7 @@ func (c *cpu) rrc_irr(opcode uint8, b bus) {
 	c.F.set(H, false)
 	c.F.set(CY, carryOut > 0)
 
-	b.write(addr, v)
+	c.writeTo(gb, addr, v)
 }
 
 // 0x08 RRC B   2 8 0 Z 0 0 C
@@ -2816,7 +2794,7 @@ func (c *cpu) rrc_irr(opcode uint8, b bus) {
 // 0x0C RRC H   2 8 0 Z 0 0 C
 // 0x0D RRC L   2 8 0 Z 0 0 C
 // 0x0F RRC A   2 8 0 Z 0 0 C
-func (c *cpu) rrc_r(opcode uint8, b bus) {
+func (c *cpu) rrc_r(opcode uint8, gb *GameBoy) {
 	var r *uint8
 
 	switch opcode {
@@ -2853,9 +2831,9 @@ func (c *cpu) rrc_r(opcode uint8, b bus) {
 // 0xEE SET 5,(HL)      2 16 0 - - - -
 // 0xF6 SET 6,(HL)      2 16 0 - - - -
 // 0xFE SET 7,(HL)      2 16 0 - - - -
-func (c *cpu) set_irr(opcode uint8, b bus) {
+func (c *cpu) set_irr(opcode uint8, gb *GameBoy) {
 	addr := uint16(c.H)<<8 | uint16(c.L)
-	v := b.read(addr)
+	v := c.readFrom(gb, addr)
 
 	var mask uint8
 	switch opcode {
@@ -2879,7 +2857,7 @@ func (c *cpu) set_irr(opcode uint8, b bus) {
 
 	v |= mask
 
-	b.write(addr, v)
+	c.writeTo(gb, addr, v)
 }
 
 // 0xC0 SET 0,B 2 8 0 - - - -
@@ -2938,7 +2916,7 @@ func (c *cpu) set_irr(opcode uint8, b bus) {
 // 0xFC SET 7,H 2 8 0 - - - -
 // 0xFD SET 7,L 2 8 0 - - - -
 // 0xFF SET 7,A 2 8 0 - - - -
-func (c *cpu) set_r(opcode uint8, b bus) {
+func (c *cpu) set_r(opcode uint8, gb *GameBoy) {
 	var r *uint8
 	var mask uint8
 
@@ -3118,9 +3096,9 @@ func (c *cpu) set_r(opcode uint8, b bus) {
 }
 
 // 0x26 SLA (HL)        2 16 0 Z 0 0 C
-func (c *cpu) sla_irr(opcode uint8, b bus) {
+func (c *cpu) sla_irr(opcode uint8, gb *GameBoy) {
 	addr := uint16(c.H)<<8 | uint16(c.L)
-	v := b.read(addr)
+	v := c.readFrom(gb, addr)
 
 	carryOut := v & 0x80
 	v <<= 1
@@ -3130,7 +3108,7 @@ func (c *cpu) sla_irr(opcode uint8, b bus) {
 	c.F.set(H, false)
 	c.F.set(CY, carryOut > 0)
 
-	b.write(addr, v)
+	c.writeTo(gb, addr, v)
 }
 
 // 0x20 SLA B   2 8 0 Z 0 0 C
@@ -3140,7 +3118,7 @@ func (c *cpu) sla_irr(opcode uint8, b bus) {
 // 0x24 SLA H   2 8 0 Z 0 0 C
 // 0x25 SLA L   2 8 0 Z 0 0 C
 // 0x27 SLA A   2 8 0 Z 0 0 C
-func (c *cpu) sla_r(opcode uint8, b bus) {
+func (c *cpu) sla_r(opcode uint8, gb *GameBoy) {
 	var r *uint8
 
 	switch opcode {
@@ -3170,9 +3148,9 @@ func (c *cpu) sla_r(opcode uint8, b bus) {
 }
 
 // 0x2E SRA (HL)        2 16 0 Z 0 0 0
-func (c *cpu) sra_irr(opcode uint8, b bus) {
+func (c *cpu) sra_irr(opcode uint8, gb *GameBoy) {
 	addr := uint16(c.H)<<8 | uint16(c.L)
-	v := b.read(addr)
+	v := c.readFrom(gb, addr)
 
 	carryIn := v & 0x80
 	carryOut := v & 0x01
@@ -3183,7 +3161,7 @@ func (c *cpu) sra_irr(opcode uint8, b bus) {
 	c.F.set(H, false)
 	c.F.set(CY, carryOut > 0) // rednex says this is set, I guess we'll see
 
-	b.write(addr, v)
+	c.writeTo(gb, addr, v)
 }
 
 // 0x28 SRA B   2 8 0 Z 0 0 0
@@ -3193,7 +3171,7 @@ func (c *cpu) sra_irr(opcode uint8, b bus) {
 // 0x2C SRA H   2 8 0 Z 0 0 0
 // 0x2D SRA L   2 8 0 Z 0 0 0
 // 0x2F SRA A   2 8 0 Z 0 0 0
-func (c *cpu) sra_r(opcode uint8, b bus) {
+func (c *cpu) sra_r(opcode uint8, gb *GameBoy) {
 	var r *uint8
 
 	switch opcode {
@@ -3224,9 +3202,9 @@ func (c *cpu) sra_r(opcode uint8, b bus) {
 }
 
 // 0x3E SRL (HL)        2 16 0 Z 0 0 C
-func (c *cpu) srl_irr(opcode uint8, b bus) {
+func (c *cpu) srl_irr(opcode uint8, gb *GameBoy) {
 	addr := uint16(c.H)<<8 | uint16(c.L)
-	v := b.read(addr)
+	v := c.readFrom(gb, addr)
 
 	carryOut := v & 0x01
 	v >>= 1
@@ -3235,7 +3213,7 @@ func (c *cpu) srl_irr(opcode uint8, b bus) {
 	c.F.set(N, false)
 	c.F.set(H, false)
 	c.F.set(CY, carryOut > 0)
-	b.write(addr, v)
+	c.writeTo(gb, addr, v)
 }
 
 // 0x38 SRL B   2 8 0 Z 0 0 C
@@ -3245,7 +3223,7 @@ func (c *cpu) srl_irr(opcode uint8, b bus) {
 // 0x3C SRL H   2 8 0 Z 0 0 C
 // 0x3D SRL L   2 8 0 Z 0 0 C
 // 0x3F SRL A   2 8 0 Z 0 0 C
-func (c *cpu) srl_r(opcode uint8, b bus) {
+func (c *cpu) srl_r(opcode uint8, gb *GameBoy) {
 	var r *uint8
 
 	switch opcode {
@@ -3275,9 +3253,9 @@ func (c *cpu) srl_r(opcode uint8, b bus) {
 }
 
 // 0x36 SWAP (HL)       2 16 0 Z 0 0 0
-func (c *cpu) swap_irr(opcode uint8, b bus) {
+func (c *cpu) swap_irr(opcode uint8, gb *GameBoy) {
 	addr := uint16(c.H)<<8 | uint16(c.L)
-	v := b.read(addr)
+	v := c.readFrom(gb, addr)
 
 	lo := v & 0xF0 >> 4
 	hi := v & 0x0F << 4
@@ -3288,7 +3266,7 @@ func (c *cpu) swap_irr(opcode uint8, b bus) {
 	c.F.set(H, false)
 	c.F.set(CY, false)
 
-	b.write(addr, v)
+	c.writeTo(gb, addr, v)
 }
 
 // 0x30 SWAP B  2 8 0 Z 0 0 0
@@ -3298,7 +3276,7 @@ func (c *cpu) swap_irr(opcode uint8, b bus) {
 // 0x34 SWAP H  2 8 0 Z 0 0 0
 // 0x35 SWAP L  2 8 0 Z 0 0 0
 // 0x37 SWAP A  2 8 0 Z 0 0 0
-func (c *cpu) swap_r(opcode uint8, b bus) {
+func (c *cpu) swap_r(opcode uint8, gb *GameBoy) {
 	var r *uint8
 
 	switch opcode {

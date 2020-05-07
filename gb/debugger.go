@@ -6,9 +6,28 @@ import (
 	"strings"
 )
 
-var wroteHeader bool
+var (
+	wroteHeader bool
+	debugMode   bool
+)
 
-func disassemble(pc uint16, bus bus, A uint8, F cpuFlags, B, C, D, E, H, L uint8, SP uint16, w io.Writer) {
+func dpanic(format string, values ...interface{}) {
+	if !debugMode {
+		return
+	}
+
+	panic(fmt.Sprintf(format, values...))
+}
+
+func unmappedWrite(subsystem string, addr uint16, val uint8) {
+	dpanic("[%s] unmapped write to %04x: %02x", subsystem, addr, val)
+}
+
+func unmappedRead(subsystem string, addr uint16) {
+	dpanic("[%s] unmapped read from %04x", subsystem, addr)
+}
+
+func disassemble(pc uint16, gb *GameBoy, A uint8, F cpuFlags, B, C, D, E, H, L uint8, SP uint16, w io.Writer) {
 	if !wroteHeader {
 		w.Write([]byte("[PC  ] op                [mem curval +-2] F    A  B  C  D  E  H  L  SP\n"))
 		wroteHeader = true
@@ -20,15 +39,15 @@ func disassemble(pc uint16, bus bus, A uint8, F cpuFlags, B, C, D, E, H, L uint8
 	)
 
 	read16 := func() uint16 {
-		lo := bus.peek(pc)
+		lo := gb.read(pc)
 		pc++
-		hi := bus.peek(pc)
+		hi := gb.read(pc)
 		pc++
 
 		return uint16(hi)<<8 | uint16(lo)
 	}
 	read8 := func() uint8 {
-		v := bus.peek(pc)
+		v := gb.read(pc)
 		pc++
 
 		return v
@@ -44,7 +63,7 @@ func disassemble(pc uint16, bus bus, A uint8, F cpuFlags, B, C, D, E, H, L uint8
 		wrote += n
 	}
 	writePeek := func(addr uint16) {
-		n, err := fmt.Fprintf(w, "%s[%02x %02x %02x %02x %02x]", strings.Repeat(" ", firstColLen-wrote), bus.peek(addr-2), bus.peek(addr-1), bus.peek(addr), bus.peek(addr+1), bus.peek(addr+2))
+		n, err := fmt.Fprintf(w, "%s[%02x %02x %02x %02x %02x]", strings.Repeat(" ", firstColLen-wrote), gb.read(addr-2), gb.read(addr-1), gb.read(addr), gb.read(addr+1), gb.read(addr+2))
 		if err != nil {
 			panic(err)
 		}
@@ -75,7 +94,7 @@ func disassemble(pc uint16, bus bus, A uint8, F cpuFlags, B, C, D, E, H, L uint8
 	writef16("[%04X] ", pc)
 
 printInstr:
-	op := bus.peek(pc)
+	op := gb.read(pc)
 	pc++
 
 	switch op {

@@ -7,44 +7,26 @@ import (
 	"strings"
 )
 
-type size int
+type rom []byte
 
-const (
-	Byte size = 1
-	KiB       = 1024 * Byte
-	MiB       = 1024 * KiB
-)
-
-func (s size) String() string {
-	if s > MiB {
-		return fmt.Sprintf("%dMiB", s/MiB)
-	}
-	if s > KiB {
-		return fmt.Sprintf("%dKiB", s/KiB)
-	}
-	return fmt.Sprintf("%d", s)
-}
-
-type rom []uint8
-
-func (r rom) read(addr uint16) uint8 {
+func (r rom) read(addr uint16) byte {
 	return r[int(addr)%cap(r)]
 }
 
-type cartridge struct {
+type Cartridge struct {
 	rom    rom
 	mapper mapper
 
 	info CartridgeInfo
 }
 
-func newCartridge(r io.Reader) (*cartridge, error) {
+func NewCartridge(r io.Reader) (*Cartridge, error) {
 	data, err := ioutil.ReadAll(r)
 	if err != nil {
 		return nil, fmt.Errorf("unable to read rom: %w", err)
 	}
 
-	ret := &cartridge{
+	ret := &Cartridge{
 		rom:    rom(data),
 		info:   CartridgeInfo{},
 		mapper: mapper0{},
@@ -55,28 +37,29 @@ func newCartridge(r io.Reader) (*cartridge, error) {
 	return ret, nil
 }
 
-func (c *cartridge) translateRead(addr uint16) uint16 {
+func (c *Cartridge) translateRead(addr uint16) uint16 {
 	if c == nil {
 		return addr // TODO: this is hack to avoid the race condition of reg initialization when cart not present, need to rethink that
 	}
 	return c.mapper.translateRead(addr)
 }
 
-func (c *cartridge) translateWrite(addr uint16) uint16 {
+func (c *Cartridge) translateWrite(addr uint16) uint16 {
 	if c == nil {
 		return addr // TODO: this is hack to avoid the race condition of reg initialization when cart not present, need to rethink that
 	}
 	return c.mapper.translateWrite(addr)
 }
 
-func (c *cartridge) read(addr uint16) uint8 {
+func (c *Cartridge) read(addr uint16) uint8 {
 	if addr >= 0xA000 && addr <= 0xBFFF {
 		return 0
 	}
 	return c.rom.read(addr)
 }
 
-func (c *cartridge) write(addr uint16, v uint8) {
+func (c *Cartridge) write(addr uint16, v uint8) {
+	panic("write to rom")
 	// todo
 }
 

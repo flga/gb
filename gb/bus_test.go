@@ -1,19 +1,11 @@
 package gb
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestRamMap(t *testing.T) {
-	var c cpu
-	c.init(0x0000)
-	c.A = 0xFF
-	c.B = 0xFF
-	c.C = 0xFF
-	c.D = 0xFF
-	c.E = 0xFF
-	c.H = 0xFF
-	c.L = 0xFF
-
-	cart := cartridge{
+	cart := &Cartridge{
 		rom: []byte{
 			0x3E, 0x42, //       LD A,0x42
 			0xEA, 0x00, 0xC0, // LD (0xC000),A
@@ -35,55 +27,51 @@ func TestRamMap(t *testing.T) {
 		mapper: mapper0{},
 	}
 
-	bus := mmu{
-		cpu:       &c,
-		apu:       &apu{},
-		ppu:       &ppu{},
-		wram:      make(memory, 8*KiB),
-		hram:      make(memory, 127),
-		cartridge: &cart,
-	}
+	gb := New(cart, true)
 
-	c.clock(&bus) // LD A,0x42
-	c.clock(&bus) // LD (0xC000),A
-	c.clock(&bus) // LD HL,0xC000
-	c.clock(&bus) // LD B,(HL)
-	c.clock(&bus) // INC HL
-	c.clock(&bus) // LD C,(HL)
-	c.clock(&bus) // LD HL,0xE000
-	c.clock(&bus) // LD D,(HL)
-	c.clock(&bus) // INC HL
-	c.clock(&bus) // LD E,(HL)
+	gb.PowerOn()
+	gb.cpu.PC = 0x0000
+
+	gb.ExecuteInst() // LD A,0x42
+	gb.ExecuteInst() // LD (0xC000),A
+	gb.ExecuteInst() // LD HL,0xC000
+	gb.ExecuteInst() // LD B,(HL)
+	gb.ExecuteInst() // INC HL
+	gb.ExecuteInst() // LD C,(HL)
+	gb.ExecuteInst() // LD HL,0xE000
+	gb.ExecuteInst() // LD D,(HL)
+	gb.ExecuteInst() // INC HL
+	gb.ExecuteInst() // LD E,(HL)
 
 	// target addr and mirror should have 0x42
-	if got, want := c.B, uint8(0x42); got != want {
+	if got, want := gb.cpu.B, uint8(0x42); got != want {
 		t.Errorf("wram: got 0x%02X, want 0x%02X", got, want)
 	}
-	if got, want := c.D, uint8(0x42); got != want {
+	if got, want := gb.cpu.D, uint8(0x42); got != want {
 		t.Errorf("wram mirror: got 0x%02X, want 0x%02X", got, want)
 	}
 
 	// addresses not touched should remain 0x00
-	if got, want := c.C, uint8(0x00); got != want {
+	if got, want := gb.cpu.C, uint8(0x00); got != want {
 		t.Errorf("wram: got 0x%02X, want 0x%02X", got, want)
 	}
-	if got, want := c.E, uint8(0x00); got != want {
+	if got, want := gb.cpu.E, uint8(0x00); got != want {
 		t.Errorf("wram mirror: got 0x%02X, want 0x%02X", got, want)
 	}
 
-	c.clock(&bus) // LD (0xFF80),A
-	c.clock(&bus) // LD HL,0xFF80
-	c.clock(&bus) // LD B,(HL)
-	c.clock(&bus) // INC HL
-	c.clock(&bus) // LD C,(HL)
+	gb.ExecuteInst() // LD (0xFF80),A
+	gb.ExecuteInst() // LD HL,0xFF80
+	gb.ExecuteInst() // LD B,(HL)
+	gb.ExecuteInst() // INC HL
+	gb.ExecuteInst() // LD C,(HL)
 
 	// target addr should have 0x42
-	if got, want := c.B, uint8(0x42); got != want {
+	if got, want := gb.cpu.B, uint8(0x42); got != want {
 		t.Errorf("hram: got 0x%02X, want 0x%02X", got, want)
 	}
 
 	// addresses not touched should remain 0x00
-	if got, want := c.C, uint8(0x00); got != want {
+	if got, want := gb.cpu.C, uint8(0x00); got != want {
 		t.Errorf("hram: got 0x%02X, want 0x%02X", got, want)
 	}
 }
