@@ -27,7 +27,7 @@ func TestRamMap(t *testing.T) {
 		mapper: mapper0{},
 	}
 
-	gb := New(cart, true)
+	gb := New(cart, false)
 
 	gb.PowerOn()
 	gb.cpu.PC = 0x0000

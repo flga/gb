@@ -1,6 +1,7 @@
 package gb
 
 import (
+	"fmt"
 	"image/color"
 )
 
@@ -26,11 +27,11 @@ const (
 	//						2: During Searching OAM
 	//						3: During Transferring Data to LCD Driver
 
-	lcdStatCoincidenceFlag lcdStat = 1<<iota + 2 // Coincidence Flag  (0:LYC<>LY, 1:LYC=LY) (Read Only)
-	lcdStatHBlank                                // Mode 0 H-Blank Interrupt     (1=Enable) (Read/Write)
-	lcdStatVBlank                                // Mode 1 V-Blank Interrupt     (1=Enable) (Read/Write)
-	lcdStatOAM                                   // Mode 2 OAM Interrupt         (1=Enable) (Read/Write)
-	lcdStatCoincidenceInt                        // LYC=LY Coincidence Interrupt (1=Enable) (Read/Write)
+	lcdStatCoincidenceFlag lcdStat = 1 << (iota + 1) // Coincidence Flag  (0:LYC<>LY, 1:LYC=LY) (Read Only)
+	lcdStatHBlank                                    // Mode 0 H-Blank Interrupt     (1=Enable) (Read/Write)
+	lcdStatVBlank                                    // Mode 1 V-Blank Interrupt     (1=Enable) (Read/Write)
+	lcdStatOAM                                       // Mode 2 OAM Interrupt         (1=Enable) (Read/Write)
+	lcdStatCoincidenceInt                            // LYC=LY Coincidence Interrupt (1=Enable) (Read/Write)
 )
 
 type ppu struct {
@@ -84,7 +85,10 @@ func (p *ppu) clock(gb *GameBoy) {
 	// mode 1 (vblank)
 	case p.LY >= 144 && p.LY <= 153:
 		p.setMode(1)
-		if p.clocks == 0 && p.STAT&lcdStatVBlank > 0 {
+		if p.clocks == 0 {
+			// fmt.Printf("check stat: %08b\n", p.STAT)
+		}
+		if p.clocks == 0 && p.LY == 144 {
 			gb.interruptCtrl.raise(vblankInterrupt)
 		}
 	}
@@ -221,6 +225,8 @@ func (p *ppu) write(addr uint16, v uint8) {
 		p.LCDC = lcdc(v)
 		return
 	case 0xFF41:
+		fmt.Printf("write stat: %08b\n", v)
+
 		p.STAT = lcdStat(v) &^ (lcdStatMode | lcdStatCoincidenceFlag)
 		return
 	case 0xFF42:

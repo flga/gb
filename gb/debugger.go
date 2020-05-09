@@ -27,9 +27,9 @@ func unmappedRead(subsystem string, addr uint16) {
 	dpanic("[%s] unmapped read from %04x", subsystem, addr)
 }
 
-func disassemble(pc uint16, gb *GameBoy, A uint8, F cpuFlags, B, C, D, E, H, L uint8, SP uint16, w io.Writer) {
+func disassemble(pc uint16, gb *GameBoy, w io.Writer) {
 	if !wroteHeader {
-		w.Write([]byte("[PC  ] op                [mem curval +-2] F    A  B  C  D  E  H  L  SP\n"))
+		w.Write([]byte("[PC  ] op                [mem curval +-2] F    A  B  C  D  E  H  L  SP   IF   IE y-x    \n"))
 		wroteHeader = true
 	}
 	var (
@@ -123,7 +123,7 @@ printInstr:
 		writef8("LD L,%02Xh", read8())
 	case 0x36:
 		writef8("LD (HL),%02Xh", read8())
-		writePeek(uint16(H)<<8 | uint16(L))
+		writePeek(uint16(H)<<8 | uint16(gb.cpu.L))
 	case 0x3E:
 		writef8("LD A,%02Xh", read8())
 	case 0xC6:
@@ -152,7 +152,7 @@ printInstr:
 	case 0xE0:
 		lo := read8()
 		writef8("LDH (%02Xh),A", lo)
-		writePeek(0xFF | uint16(lo))
+		writePeek(0xFF00 | uint16(lo))
 
 	// (a16)
 	case 0x08:
@@ -210,7 +210,7 @@ printInstr:
 		write("NOP")
 	case 0x02:
 		write("LD (BC),A")
-		writePeek(uint16(B)<<8 | uint16(C))
+		writePeek(uint16(B)<<8 | uint16(gb.cpu.C))
 	case 0x03:
 		write("INC BC")
 	case 0x04:
@@ -223,7 +223,7 @@ printInstr:
 		write("ADD HL,BC")
 	case 0x0A:
 		write("LD A,(BC)")
-		writePeek(uint16(B)<<8 | uint16(C))
+		writePeek(uint16(gb.cpu.B)<<8 | uint16(gb.cpu.C))
 	case 0x0B:
 		write("DEC BC")
 	case 0x0C:
@@ -236,7 +236,7 @@ printInstr:
 		write("STOP 0")
 	case 0x12:
 		write("LD (DE),A")
-		writePeek(uint16(D)<<8 | uint16(E))
+		writePeek(uint16(gb.cpu.D)<<8 | uint16(gb.cpu.E))
 	case 0x13:
 		write("INC DE")
 	case 0x14:
@@ -249,7 +249,7 @@ printInstr:
 		write("ADD HL,DE")
 	case 0x1A:
 		write("LD A,(DE)")
-		writePeek(uint16(D)<<8 | uint16(E))
+		writePeek(uint16(gb.cpu.D)<<8 | uint16(gb.cpu.E))
 	case 0x1B:
 		write("DEC DE")
 	case 0x1C:
@@ -260,7 +260,7 @@ printInstr:
 		write("RRA")
 	case 0x22:
 		write("LD (HL+),A")
-		writePeek(uint16(H)<<8 | uint16(L))
+		writePeek(uint16(gb.cpu.H)<<8 | uint16(gb.cpu.L))
 	case 0x23:
 		write("INC HL")
 	case 0x24:
@@ -273,7 +273,7 @@ printInstr:
 		write("ADD HL,HL")
 	case 0x2A:
 		write("LD A,(HL+)")
-		writePeek(uint16(H)<<8 | uint16(L))
+		writePeek(uint16(gb.cpu.H)<<8 | uint16(gb.cpu.L))
 	case 0x2B:
 		write("DEC HL")
 	case 0x2C:
@@ -284,22 +284,22 @@ printInstr:
 		write("CPL")
 	case 0x32:
 		write("LD (HL-),A")
-		writePeek(uint16(H)<<8 | uint16(L))
+		writePeek(uint16(gb.cpu.H)<<8 | uint16(gb.cpu.L))
 	case 0x33:
 		write("INC SP")
 	case 0x34:
 		write("INC (HL)")
-		writePeek(uint16(H)<<8 | uint16(L))
+		writePeek(uint16(gb.cpu.H)<<8 | uint16(gb.cpu.L))
 	case 0x35:
 		write("DEC (HL)")
-		writePeek(uint16(H)<<8 | uint16(L))
+		writePeek(uint16(gb.cpu.H)<<8 | uint16(gb.cpu.L))
 	case 0x37:
 		write("SCF")
 	case 0x39:
 		write("ADD HL,SP")
 	case 0x3A:
 		write("LD A,(HL-)")
-		writePeek(uint16(H)<<8 | uint16(L))
+		writePeek(uint16(gb.cpu.H)<<8 | uint16(gb.cpu.L))
 	case 0x3B:
 		write("DEC SP")
 	case 0x3C:
@@ -322,7 +322,7 @@ printInstr:
 		write("LD B,L")
 	case 0x46:
 		write("LD B,(HL)")
-		writePeek(uint16(H)<<8 | uint16(L))
+		writePeek(uint16(gb.cpu.H)<<8 | uint16(gb.cpu.L))
 	case 0x47:
 		write("LD B,A")
 	case 0x48:
@@ -339,7 +339,7 @@ printInstr:
 		write("LD C,L")
 	case 0x4E:
 		write("LD C,(HL)")
-		writePeek(uint16(H)<<8 | uint16(L))
+		writePeek(uint16(gb.cpu.H)<<8 | uint16(gb.cpu.L))
 	case 0x4F:
 		write("LD C,A")
 	case 0x50:
@@ -356,7 +356,7 @@ printInstr:
 		write("LD D,L")
 	case 0x56:
 		write("LD D,(HL)")
-		writePeek(uint16(H)<<8 | uint16(L))
+		writePeek(uint16(gb.cpu.H)<<8 | uint16(gb.cpu.L))
 	case 0x57:
 		write("LD D,A")
 	case 0x58:
@@ -373,7 +373,7 @@ printInstr:
 		write("LD E,L")
 	case 0x5E:
 		write("LD E,(HL)")
-		writePeek(uint16(H)<<8 | uint16(L))
+		writePeek(uint16(gb.cpu.H)<<8 | uint16(gb.cpu.L))
 	case 0x5F:
 		write("LD E,A")
 	case 0x60:
@@ -390,7 +390,7 @@ printInstr:
 		write("LD H,L")
 	case 0x66:
 		write("LD H,(HL)")
-		writePeek(uint16(H)<<8 | uint16(L))
+		writePeek(uint16(gb.cpu.H)<<8 | uint16(gb.cpu.L))
 	case 0x67:
 		write("LD H,A")
 	case 0x68:
@@ -407,32 +407,32 @@ printInstr:
 		write("LD L,L")
 	case 0x6E:
 		write("LD L,(HL)")
-		writePeek(uint16(H)<<8 | uint16(L))
+		writePeek(uint16(gb.cpu.H)<<8 | uint16(gb.cpu.L))
 	case 0x6F:
 		write("LD L,A")
 	case 0x70:
 		write("LD (HL),B")
-		writePeek(uint16(H)<<8 | uint16(L))
+		writePeek(uint16(gb.cpu.H)<<8 | uint16(gb.cpu.L))
 	case 0x71:
 		write("LD (HL),C")
-		writePeek(uint16(H)<<8 | uint16(L))
+		writePeek(uint16(gb.cpu.H)<<8 | uint16(gb.cpu.L))
 	case 0x72:
 		write("LD (HL),D")
-		writePeek(uint16(H)<<8 | uint16(L))
+		writePeek(uint16(gb.cpu.H)<<8 | uint16(gb.cpu.L))
 	case 0x73:
 		write("LD (HL),E")
-		writePeek(uint16(H)<<8 | uint16(L))
+		writePeek(uint16(gb.cpu.H)<<8 | uint16(gb.cpu.L))
 	case 0x74:
 		write("LD (HL),H")
-		writePeek(uint16(H)<<8 | uint16(L))
+		writePeek(uint16(gb.cpu.H)<<8 | uint16(gb.cpu.L))
 	case 0x75:
 		write("LD (HL),L")
-		writePeek(uint16(H)<<8 | uint16(L))
+		writePeek(uint16(gb.cpu.H)<<8 | uint16(gb.cpu.L))
 	case 0x76:
 		write("HALT")
 	case 0x77:
 		write("LD (HL),A")
-		writePeek(uint16(H)<<8 | uint16(L))
+		writePeek(uint16(gb.cpu.H)<<8 | uint16(gb.cpu.L))
 	case 0x78:
 		write("LD A,B")
 	case 0x79:
@@ -447,7 +447,7 @@ printInstr:
 		write("LD A,L")
 	case 0x7E:
 		write("LD A,(HL)")
-		writePeek(uint16(H)<<8 | uint16(L))
+		writePeek(uint16(gb.cpu.H)<<8 | uint16(gb.cpu.L))
 	case 0x7F:
 		write("LD A,A")
 	case 0x80:
@@ -464,7 +464,7 @@ printInstr:
 		write("ADD A,L")
 	case 0x86:
 		write("ADD A,(HL)")
-		writePeek(uint16(H)<<8 | uint16(L))
+		writePeek(uint16(gb.cpu.H)<<8 | uint16(gb.cpu.L))
 	case 0x87:
 		write("ADD A,A")
 	case 0x88:
@@ -481,7 +481,7 @@ printInstr:
 		write("ADC A,L")
 	case 0x8E:
 		write("ADC A,(HL)")
-		writePeek(uint16(H)<<8 | uint16(L))
+		writePeek(uint16(gb.cpu.H)<<8 | uint16(gb.cpu.L))
 	case 0x8F:
 		write("ADC A,A")
 	case 0x90:
@@ -498,7 +498,7 @@ printInstr:
 		write("SUB L")
 	case 0x96:
 		write("SUB (HL)")
-		writePeek(uint16(H)<<8 | uint16(L))
+		writePeek(uint16(gb.cpu.H)<<8 | uint16(gb.cpu.L))
 	case 0x97:
 		write("SUB A")
 	case 0x98:
@@ -515,7 +515,7 @@ printInstr:
 		write("SBC A,L")
 	case 0x9E:
 		write("SBC A,(HL)")
-		writePeek(uint16(H)<<8 | uint16(L))
+		writePeek(uint16(gb.cpu.H)<<8 | uint16(gb.cpu.L))
 	case 0x9F:
 		write("SBC A,A")
 	case 0xA0:
@@ -532,7 +532,7 @@ printInstr:
 		write("AND L")
 	case 0xA6:
 		write("AND (HL)")
-		writePeek(uint16(H)<<8 | uint16(L))
+		writePeek(uint16(gb.cpu.H)<<8 | uint16(gb.cpu.L))
 	case 0xA7:
 		write("AND A")
 	case 0xA8:
@@ -549,7 +549,7 @@ printInstr:
 		write("XOR L")
 	case 0xAE:
 		write("XOR (HL)")
-		writePeek(uint16(H)<<8 | uint16(L))
+		writePeek(uint16(gb.cpu.H)<<8 | uint16(gb.cpu.L))
 	case 0xAF:
 		write("XOR A")
 	case 0xB0:
@@ -566,7 +566,7 @@ printInstr:
 		write("OR L")
 	case 0xB6:
 		write("OR (HL)")
-		writePeek(uint16(H)<<8 | uint16(L))
+		writePeek(uint16(gb.cpu.H)<<8 | uint16(gb.cpu.L))
 	case 0xB7:
 		write("OR A")
 	case 0xB8:
@@ -583,7 +583,7 @@ printInstr:
 		write("CP L")
 	case 0xBE:
 		write("CP (HL)")
-		writePeek(uint16(H)<<8 | uint16(L))
+		writePeek(uint16(gb.cpu.H)<<8 | uint16(gb.cpu.L))
 	case 0xBF:
 		write("CP A")
 	case 0xC0:
@@ -627,7 +627,7 @@ printInstr:
 		write("POP HL")
 	case 0xE2:
 		write("LD (C),A")
-		writePeek(0xFF00 | uint16(C))
+		writePeek(0xFF00 | uint16(gb.cpu.C))
 	case 0xE3:
 		write("ILLEGAL")
 	case 0xE4:
@@ -638,7 +638,7 @@ printInstr:
 		write("RST 20H")
 	case 0xE9:
 		write("JP (HL)")
-		writePeek(uint16(H)<<8 | uint16(L))
+		writePeek(uint16(gb.cpu.H)<<8 | uint16(gb.cpu.L))
 	case 0xEB:
 		write("ILLEGAL")
 	case 0xEC:
@@ -651,7 +651,7 @@ printInstr:
 		write("POP AF")
 	case 0xF2:
 		write("LD A,(C)")
-		writePeek(0xFF00 | uint16(C))
+		writePeek(0xFF00 | uint16(gb.cpu.C))
 	case 0xF3:
 		write("DI")
 	case 0xF4:
@@ -671,5 +671,22 @@ printInstr:
 	case 0xFF:
 		write("RST 38H")
 	}
-	fmt.Fprintf(w, "%s %s %02x %02x %02x %02x %02x %02x %02x %04x\n", strings.Repeat(" ", secondColLen-wrote), F, A, B, C, D, E, H, L, SP)
+	fmt.Fprintf(
+		w,
+		"%s %s %02x %02x %02x %02x %02x %02x %02x %04x %v %v %03d-%03d\n",
+		strings.Repeat(" ", secondColLen-wrote),
+		gb.cpu.F,
+		gb.cpu.A,
+		gb.cpu.B,
+		gb.cpu.C,
+		gb.cpu.D,
+		gb.cpu.E,
+		gb.cpu.H,
+		gb.cpu.L,
+		gb.cpu.SP,
+		gb.interruptCtrl.IF,
+		gb.interruptCtrl.IE,
+		gb.ppu.LY,
+		gb.ppu.clocks,
+	)
 }

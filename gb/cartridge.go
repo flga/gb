@@ -59,7 +59,7 @@ func (c *Cartridge) read(addr uint16) uint8 {
 }
 
 func (c *Cartridge) write(addr uint16, v uint8) {
-	panic("write to rom")
+	dpanic("write to rom")
 	// todo
 }
 

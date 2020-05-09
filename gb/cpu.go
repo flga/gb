@@ -9,8 +9,8 @@ type op func(opcode uint8, gb *GameBoy)
 const (
 	vectorVBlank uint16 = 0x40
 	vectorLCDc   uint16 = 0x48
-	vectorSerial uint16 = 0x50
-	vectorTimer  uint16 = 0x58
+	vectorTimer  uint16 = 0x50
+	vectorSerial uint16 = 0x58
 	vectorHTL    uint16 = 0x60
 )
 
@@ -93,13 +93,13 @@ type cpu struct {
 
 func (c *cpu) init(pc uint16) {
 	c.A = 0x01
-	c.F = 0xB0
-	c.B = 0x00
+	c.F = 0x00
+	c.B = 0xFF
 	c.C = 0x13
 	c.D = 0x00
-	c.E = 0xD8
-	c.H = 0x01
-	c.L = 0x4D
+	c.E = 0xC1
+	c.H = 0x84
+	c.L = 0x03
 	c.SP = 0xFFFE
 	c.PC = pc
 
@@ -158,7 +158,7 @@ func (c *cpu) clock(gb *GameBoy) {
 	case run:
 		op := c.readFrom(gb, c.PC)
 		if c.disasm {
-			disassemble(c.PC, gb, c.A, c.F, c.B, c.C, c.D, c.E, c.H, c.L, c.SP, os.Stdout)
+			disassemble(c.PC, gb, os.Stdout)
 		}
 
 		if c.scheduleIME {
@@ -172,7 +172,7 @@ func (c *cpu) clock(gb *GameBoy) {
 		}
 		c.table[op](op, gb)
 
-		if gb.interruptCtrl.raised(anyInterrupt) > 0 {
+		if gb.interruptCtrl.raised(anyInterrupt) > 0 && c.IME {
 			c.state = interruptDispatch
 		}
 	case interruptDispatch:

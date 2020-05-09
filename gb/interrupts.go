@@ -1,5 +1,7 @@
 package gb
 
+import "fmt"
+
 type interrupt uint8
 
 const (
@@ -45,6 +47,7 @@ func (ic *interruptCtrl) write(addr uint16, v uint8) {
 	switch addr {
 	case ioRegs.IF:
 		ic.IF = interrupt(v)
+		fmt.Println(ic.IF, v)
 	case ioRegs.IE:
 		ic.IE = interrupt(v)
 	default:
@@ -57,7 +60,7 @@ func (ic *interruptCtrl) read(addr uint16) uint8 {
 	case ioRegs.IF:
 		return 0xe0 | uint8(ic.IF)
 	case ioRegs.IE:
-		return 0xe0 | uint8(ic.IE)
+		return uint8(ic.IE)
 	default:
 		unmappedRead("interrupt controller", addr)
 		return 0
@@ -70,6 +73,14 @@ func (ic *interruptCtrl) raised(interrupt interrupt) interrupt {
 
 func (ic *interruptCtrl) raise(interrupt interrupt) {
 	ic.IF |= interrupt
+}
+
+func (ic *interruptCtrl) enabled(interrupt interrupt) interrupt {
+	return ic.IE & interrupt
+}
+
+func (ic *interruptCtrl) enable(interrupt interrupt) {
+	ic.IE |= interrupt
 }
 
 func (ic *interruptCtrl) ack(interrupt interrupt) {

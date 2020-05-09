@@ -74,6 +74,9 @@ func (gb *GameBoy) ExecuteInst() {
 func (gb *GameBoy) clockCompensate() {
 	gb.divider.clock(gb)
 	gb.timer.clock(gb)
+	gb.timer.clock(gb)
+	gb.timer.clock(gb)
+	gb.timer.clock(gb)
 	gb.interruptCtrl.clock(gb)
 	gb.dmaCtrl.clock(gb)
 	gb.apu.clock(gb)
@@ -121,7 +124,8 @@ func (gb *GameBoy) PowerOn() {
 	gb.cpu.init(0x0100)
 
 	// io registers init
-	gb.write(ioRegs.TIMA, 0x00)
+	gb.write(ioRegs.SC, 0x7E)
+	gb.write(ioRegs.TIMA, 0x0)
 	gb.write(ioRegs.TMA, 0x00)
 	gb.write(ioRegs.TAC, 0x00)
 	gb.write(ioRegs.NR10, 0x80)
@@ -152,6 +156,8 @@ func (gb *GameBoy) PowerOn() {
 	gb.write(ioRegs.WY, 0x00)
 	gb.write(ioRegs.WX, 0x00)
 	gb.write(ioRegs.IE, 0x00)
+
+	*gb.divider = 0xABCC
 }
 func (gb *GameBoy) PowerOff()             {}
 func (gb *GameBoy) SetVolume(vol float64) {}
@@ -300,7 +306,7 @@ func (gb *GameBoy) read(addr uint16) uint8 {
 	}
 
 	// panic(fmt.Sprintf("unmapped read at 0%X", addr))
-	return 0
+	return 0xFF
 }
 
 func (gb *GameBoy) write(addr uint16, v uint8) {

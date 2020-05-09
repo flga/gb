@@ -1,15 +1,17 @@
 package gb
 
-type serial struct{}
+type serial struct {
+	SB, SC uint8
+}
 
 func (s *serial) clock(gb *GameBoy) {}
 
 func (s *serial) write(addr uint16, v uint8) {
 	switch addr {
 	case ioRegs.SB:
-		// TODO
+		s.SB = v
 	case ioRegs.SC:
-		// TODO
+		s.SC = v
 	default:
 		unmappedWrite("serial", addr, v)
 	}
@@ -18,9 +20,9 @@ func (s *serial) write(addr uint16, v uint8) {
 func (s *serial) read(addr uint16) uint8 {
 	switch addr {
 	case ioRegs.SB:
-		return 0 // TODO
+		return s.SB
 	case ioRegs.SC:
-		return 0 // TODO
+		return s.SC
 	default:
 		unmappedRead("serial", addr)
 		return 0

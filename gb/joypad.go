@@ -28,7 +28,7 @@ func (j *joypad) read(addr uint16) uint8 {
 	switch addr {
 	case ioRegs.P1:
 		// TODO
-		return 0
+		return 0xCF // LOL
 	default:
 		unmappedRead("joypad", addr)
 		return 0
