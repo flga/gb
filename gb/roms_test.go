@@ -33,6 +33,33 @@ func (s *testSerialCtrl) passed() int {
 	return -1
 }
 
+func blarggTest(cart *Cartridge, t *testing.T) {
+	gb := New(cart, false)
+
+	var ctrl testSerialCtrl
+	gb.serial = &ctrl
+
+	gb.PowerOn()
+
+	for gb.machineCycles < 0x1FFFFFF {
+		gb.ExecuteInst()
+
+		status := ctrl.passed()
+		switch status {
+		case -1:
+			continue
+		case 0:
+			t.Log(ctrl.String())
+			t.Error("Failed")
+			return
+		case 1:
+			return
+		}
+	}
+
+	t.Fatal("timeout")
+}
+
 func TestCpuInstr(t *testing.T) {
 	tests := []string{
 		"01-special.gb",
@@ -60,30 +87,79 @@ func TestCpuInstr(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			gb := New(cart, false)
+			blarggTest(cart, t)
+		})
+	}
+}
 
-			var ctrl testSerialCtrl
-			gb.serial = &ctrl
+func TestInstrTiming(t *testing.T) {
+	tests := []string{
+		"instr_timing.gb",
+	}
+	for _, tt := range tests {
+		t.Run(tt, func(t *testing.T) {
+			f, err := os.Open("../testdata/gb-test-roms/instr_timing/" + tt)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer f.Close()
 
-			gb.PowerOn()
-
-			for gb.machineCycles < 0x1FFFFFF {
-				gb.ExecuteInst()
-
-				status := ctrl.passed()
-				switch status {
-				case -1:
-					continue
-				case 0:
-					t.Log(ctrl.String())
-					t.Error("Failed")
-					return
-				case 1:
-					return
-				}
+			cart, err := NewCartridge(f)
+			if err != nil {
+				t.Fatal(err)
 			}
 
-			t.Fatal("timeout")
+			blarggTest(cart, t)
+		})
+	}
+}
+
+func TestMemTiming(t *testing.T) {
+	tests := []string{
+		"mem_timing/individual/01-read_timing.gb",
+		"mem_timing/individual/02-write_timing.gb",
+		"mem_timing/individual/03-modify_timing.gb",
+		// "mem_timing-2/rom_singles/01-read_timing.gb",
+		// "mem_timing-2/rom_singles/02-write_timing.gb",
+		// "mem_timing-2/rom_singles/03-modify_timing.gb",
+	}
+	for _, tt := range tests {
+		t.Run(tt, func(t *testing.T) {
+			f, err := os.Open("../testdata/gb-test-roms/" + tt)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer f.Close()
+
+			cart, err := NewCartridge(f)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			blarggTest(cart, t)
+		})
+	}
+}
+
+func TestHaltBug(t *testing.T) {
+	t.Skip()
+	tests := []string{
+		"halt_bug.gb",
+	}
+	for _, tt := range tests {
+		t.Run(tt, func(t *testing.T) {
+			f, err := os.Open("../testdata/gb-test-roms/" + tt)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer f.Close()
+
+			cart, err := NewCartridge(f)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			blarggTest(cart, t)
 		})
 	}
 }

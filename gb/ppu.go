@@ -1,9 +1,19 @@
 package gb
 
 import (
-	"fmt"
 	"image/color"
 )
+
+type sprite struct {
+	y, x, tile, flags uint8
+}
+
+var basePalette = [4]color.RGBA{
+	{0xFF, 0xFF, 0xFF, 0xFF},
+	{0xCC, 0xCC, 0xCC, 0xFF},
+	{0x33, 0x33, 0x33, 0xFF},
+	{0x00, 0x00, 0x00, 0xFF},
+}
 
 type lcdc uint8
 
@@ -49,12 +59,13 @@ type ppu struct {
 	DMA  uint8   // DMA Transfer and Start Address (R/W)
 
 	VRAM       [8 * KiB]byte
-	OAM        [200]byte
+	OAM        [160]byte
 	Nametable1 [1 * KiB]byte
 	Nametable2 [1 * KiB]byte
 
-	frame  [160 * 144 * 4]uint8
-	clocks uint64
+	sprites [10]sprite
+	frame   [160 * 144 * 4]uint8
+	clocks  uint64
 }
 
 func (p *ppu) clock(gb *GameBoy) {
@@ -63,6 +74,7 @@ func (p *ppu) clock(gb *GameBoy) {
 		// mode 2 (oam search)
 		if p.clocks >= 0 && p.clocks <= 79 {
 			p.setMode(2)
+			p.oamSearch()
 		}
 
 		// mode 3 (draw)
@@ -71,6 +83,7 @@ func (p *ppu) clock(gb *GameBoy) {
 
 			if p.clocks == 251 {
 				p.drawLine()
+				p.drawSprites()
 			}
 		}
 
@@ -85,9 +98,6 @@ func (p *ppu) clock(gb *GameBoy) {
 	// mode 1 (vblank)
 	case p.LY >= 144 && p.LY <= 153:
 		p.setMode(1)
-		if p.clocks == 0 {
-			// fmt.Printf("check stat: %08b\n", p.STAT)
-		}
 		if p.clocks == 0 && p.LY == 144 {
 			gb.interruptCtrl.raise(vblankInterrupt)
 		}
@@ -114,14 +124,9 @@ func (p *ppu) drawLine() {
 	if p.LCDC&lcdcDisplayEnable == 0 {
 		return
 	}
-	testPalette := [4]color.RGBA{
-		{0xFF, 0xFF, 0xFF, 0xFF},
-		{0xCC, 0xCC, 0xCC, 0xFF},
-		{0x33, 0x33, 0x33, 0xFF},
-		{0x00, 0x00, 0x00, 0xFF},
-	}
+
+	fineY := uint16(p.LY)
 	for fineX := uint16(0); fineX < 160; fineX++ {
-		fineY := uint16(p.LY)
 		row := fineY % 8
 		tileIndex := p.tileIndex(fineX, fineY)
 
@@ -135,13 +140,17 @@ func (p *ppu) drawLine() {
 		pixelLo := tileLo & 0x80 >> 7
 		pixelHi := tileHi & 0x80 >> 7
 		paletteIdx := pixelHi<<1 | pixelLo
-		color := testPalette[paletteIdx]
+		colour := p.paletteLookup(paletteIdx, p.BGP)
 
 		offset := int(fineY)*160*4 + int(fineX)*4
-		p.frame[offset+0] = color.R
-		p.frame[offset+1] = color.G
-		p.frame[offset+2] = color.B
-		p.frame[offset+3] = color.A
+		p.frame[offset+0] = colour.R
+		p.frame[offset+1] = colour.G
+		p.frame[offset+2] = colour.B
+		p.frame[offset+3] = colour.A
+	}
+
+	if p.LCDC&lcdcObjEnable == 0 {
+		return
 	}
 }
 
@@ -168,6 +177,10 @@ func (p *ppu) tileBaseAddr(tileIdx uint16) uint16 {
 		return uint16(0x8000 + int(tileIdx))
 	}
 	panic("?")
+}
+
+func (p *ppu) spriteTileBaseAddr(tileIdx uint16) uint16 {
+	return uint16(0x8000) + tileIdx
 }
 
 func (p *ppu) setMode(mode uint8) {
@@ -199,8 +212,6 @@ func (p *ppu) read(addr uint16) uint8 {
 		return p.OBP0
 	case 0xFF49:
 		return p.OBP1
-	case 0xFF46:
-		return p.DMA
 	}
 
 	if addr >= 0x9800 && addr <= 0x9BFF {
@@ -225,8 +236,6 @@ func (p *ppu) write(addr uint16, v uint8) {
 		p.LCDC = lcdc(v)
 		return
 	case 0xFF41:
-		fmt.Printf("write stat: %08b\n", v)
-
 		p.STAT = lcdStat(v) &^ (lcdStatMode | lcdStatCoincidenceFlag)
 		return
 	case 0xFF42:
@@ -253,9 +262,6 @@ func (p *ppu) write(addr uint16, v uint8) {
 	case 0xFF49:
 		p.OBP1 = v
 		return
-	case 0xFF46:
-		p.DMA = v
-		return
 	}
 
 	if addr >= 0x9800 && addr <= 0x9BFF {
@@ -272,51 +278,100 @@ func (p *ppu) write(addr uint16, v uint8) {
 		return
 	}
 
+	if addr >= 0xFE00 && addr <= 0xFE9F {
+		p.OAM[addr-0xFE00] = v
+		return
+	}
+
 	// fmt.Fprintf(os.Stderr, "unhandled ppu write 0x%04X: 0x%02X\n", addr, v)
 	// panic(fmt.Sprintf("unhandled ppu write 0x%04X: 0x%02X", addr, v))
 	return
 }
 
-// func (p *ppu) drawFrame() {
-// 	if p.frame == nil {
-// 		p.frame = image.NewRGBA(image.Rect(0, 0, 160, 144))
-// 	}
+func (p *ppu) drawSprites() {
+	if p.LCDC&lcdcDisplayEnable == 0 {
+		return
+	}
+	if p.LCDC&lcdcObjEnable == 0 {
+		return
+	}
 
-// 	testPalette := [4]color.RGBA{
-// 		{0xFF, 0xFF, 0xFF, 0xFF},
-// 		{0x00, 0x00, 0x00, 0xFF},
-// 		{0x00, 0x00, 0x00, 0xFF},
-// 		{0x00, 0x00, 0x00, 0xFF},
-// 	}
+	for i := 0; i < 40; i++ {
+		var (
+			spriteY     = p.OAM[i*4+0] - 16
+			spriteX     = p.OAM[i*4+1] - 8
+			spriteTile  = p.OAM[i*4+2]
+			spriteFlags = p.OAM[i*4+3]
+		)
 
-// 	for coarseY := uint16(0); coarseY < 32; coarseY++ {
-// 		for coarseX := uint16(0); coarseX < 32; coarseX++ {
-// 			var tileIdx uint16
-// 			if p.LCDC&lcdcBgSelect == 0 {
-// 				tileIdx = uint16(p.Nametable1[coarseY*32+coarseX])
-// 			} else if p.LCDC&lcdcBgSelect > 0 {
-// 				tileIdx = uint16(p.Nametable2[coarseY*32+coarseX])
-// 			}
-// 			tileIdx *= 16
+		row := int(p.LY) - int(spriteY)
+		if row < 0 || row > 7 {
+			continue
+		}
+		addr := 0x8000 + uint16(spriteTile)*16 + uint16(row)*2
+		tileLo := p.read(addr)
+		tileHi := p.read(addr + 1)
 
-// 			addr := uint16(p.tileBaseAddr(tileIdx))
-// 			for fineY := uint16(0); fineY < 8; fineY++ {
-// 				tileLo := p.read(addr)
-// 				addr++
-// 				tileHi := p.read(addr)
-// 				addr++
+		for fineX := byte(0); fineX < 8; fineX++ {
+			x := spriteX + fineX
 
-// 				for fineX := uint16(0); fineX < 8; fineX++ {
-// 					pixelLo := tileLo & 0x80 >> 7
-// 					pixelHi := tileHi & 0x80 >> 7
+			pixelLo := tileLo & 0x80 >> 7
+			pixelHi := tileHi & 0x80 >> 7
+			paletteIdx := pixelHi<<1 | pixelLo
 
-// 					tileLo <<= 1
-// 					tileHi <<= 1
+			tileHi <<= 1
+			tileLo <<= 1
 
-// 					paletteIdx := pixelHi<<1 | pixelLo
-// 					p.frame.Set(int(coarseX*8+fineX), int(coarseY*8+fineY), testPalette[paletteIdx])
-// 				}
-// 			}
-// 		}
-// 	}
-// }
+			if x < 0 || x > 159 {
+				continue
+			}
+
+			if paletteIdx == 00 {
+				continue
+			}
+
+			var colour color.RGBA
+			switch {
+			case spriteFlags&(1<<4) == 0:
+				colour = p.paletteLookup(paletteIdx, p.OBP0)
+			case spriteFlags&(1<<4) > 0:
+				colour = p.paletteLookup(paletteIdx, p.OBP1)
+			}
+
+			offset := int(p.LY)*160*4 + int(x)*4
+			p.frame[offset+0] = colour.R
+			p.frame[offset+1] = colour.G
+			p.frame[offset+2] = colour.B
+			p.frame[offset+3] = colour.A
+		}
+	}
+}
+
+func (p *ppu) oamSearch() { // TODO
+	var idx int
+	y := int(p.LY)
+	for i := 0; i < 40; i++ {
+		screenY := int(p.OAM[i*4+0]) - 16
+		if y-screenY < 0 || y-screenY > 7 {
+			continue
+		}
+
+		p.sprites[idx] = sprite{
+			y:     p.OAM[i*4+0],
+			x:     p.OAM[i*4+1],
+			tile:  p.OAM[i*4+2],
+			flags: p.OAM[i*4+3],
+		}
+		idx++
+
+		if idx == 10 {
+			break
+		}
+	}
+}
+
+func (p *ppu) paletteLookup(id, palette uint8) color.RGBA {
+	shift := id * 2
+	mask := uint8(0x03) << shift
+	return basePalette[palette&mask>>shift]
+}

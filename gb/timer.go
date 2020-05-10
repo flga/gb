@@ -11,7 +11,7 @@ func (t timerControl) enabled() bool {
 	return t&timerEnable > 0
 }
 
-func (t timerControl) freq() (machineCycles uint64) {
+func (t timerControl) freq() (machineCycles uint16) {
 	switch t & timerClockSelect {
 	case 0:
 		return 1024
@@ -27,16 +27,22 @@ func (t timerControl) freq() (machineCycles uint64) {
 }
 
 type timer struct {
-	TIMA   uint8
-	TMA    uint8
-	TAC    timerControl
-	clocks uint64 // todo: dont keep count here
-	reload bool
+	DIV        uint16
+	TIMA       uint8
+	TMA        uint8
+	TAC        timerControl
+	reloadNext int
+	reload     bool
 }
 
 func (t *timer) clock(gb *GameBoy) {
-	if !t.TAC.enabled() {
-		return
+	t.DIV++
+
+	if t.reloadNext > 0 {
+		t.reloadNext--
+		if t.reloadNext == 0 {
+			t.reload = true //does it fallthrough?
+		}
 	}
 
 	if t.reload {
@@ -45,18 +51,19 @@ func (t *timer) clock(gb *GameBoy) {
 		gb.interruptCtrl.raise(timerInterrupt)
 	}
 
-	if t.clocks%t.TAC.freq() == 0 {
+	if t.TAC.enabled() && t.DIV%t.TAC.freq() == 0 {
 		prev := t.TIMA
 		t.TIMA++
 		if t.TIMA < prev {
-			t.reload = true
+			t.reloadNext = 4
 		}
 	}
-	t.clocks++
 }
 
 func (t *timer) write(addr uint16, v uint8) {
 	switch addr {
+	case ioRegs.DIV:
+		t.DIV = 0
 	case ioRegs.TIMA:
 		t.TIMA = v
 	case ioRegs.TMA:
@@ -70,6 +77,8 @@ func (t *timer) write(addr uint16, v uint8) {
 
 func (t *timer) read(addr uint16) uint8 {
 	switch addr {
+	case ioRegs.DIV:
+		return uint8(t.DIV >> 8)
 	case ioRegs.TIMA:
 		return t.TIMA
 	case ioRegs.TMA:
@@ -78,31 +87,6 @@ func (t *timer) read(addr uint16) uint8 {
 		return uint8(0xF8 | t.TAC)
 	default:
 		unmappedRead("timer", addr)
-		return 0
-	}
-}
-
-type divider uint16
-
-func (d *divider) clock(gb *GameBoy) {
-	*d++
-}
-
-func (d *divider) write(addr uint16, v uint8) {
-	switch addr {
-	case ioRegs.DIV:
-		*d = 0
-	default:
-		unmappedWrite("divider", addr, v)
-	}
-}
-
-func (d *divider) read(addr uint16) uint8 {
-	switch addr {
-	case ioRegs.DIV:
-		return uint8(*d >> 8)
-	default:
-		unmappedRead("divider", addr)
 		return 0
 	}
 }

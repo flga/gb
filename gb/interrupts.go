@@ -1,7 +1,5 @@
 package gb
 
-import "fmt"
-
 type interrupt uint8
 
 const (
@@ -47,7 +45,6 @@ func (ic *interruptCtrl) write(addr uint16, v uint8) {
 	switch addr {
 	case ioRegs.IF:
 		ic.IF = interrupt(v)
-		fmt.Println(ic.IF, v)
 	case ioRegs.IE:
 		ic.IE = interrupt(v)
 	default:

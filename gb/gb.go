@@ -4,7 +4,55 @@ import (
 	"bytes"
 	"io"
 	"io/ioutil"
+	"os"
 )
+
+type state uint8
+
+const (
+	run state = 1 << iota
+	stop
+	halt
+	interruptDispatch
+	dma
+)
+
+func (s state) String() string {
+	out := make([]rune, 0, 26)
+	if s&run > 0 {
+		out = append(out, []rune("run")...)
+
+	}
+	if s&stop > 0 {
+		if len(out) > 0 {
+			out = append(out, '|')
+		}
+		out = append(out, []rune("stop")...)
+
+	}
+	if s&halt > 0 {
+		if len(out) > 0 {
+			out = append(out, '|')
+		}
+		out = append(out, []rune("halt")...)
+
+	}
+	if s&interruptDispatch > 0 {
+		if len(out) > 0 {
+			out = append(out, '|')
+		}
+		out = append(out, []rune("dispatch")...)
+
+	}
+	if s&dma > 0 {
+		if len(out) > 0 {
+			out = append(out, '|')
+		}
+		out = append(out, []rune("dma")...)
+
+	}
+	return string(out)
+}
 
 type hram [127]byte
 
@@ -25,8 +73,9 @@ func (r *wram) write(addr uint16, v uint8) {
 }
 
 type GameBoy struct {
+	state state
+
 	cpu           *cpu
-	divider       *divider
 	timer         *timer
 	interruptCtrl *interruptCtrl
 	dmaCtrl       *dmaCtrl
@@ -40,11 +89,11 @@ type GameBoy struct {
 	wram wram
 
 	machineCycles uint64
+	debug         bool
 }
 
-func New(cartridge *Cartridge, disasm bool) *GameBoy {
-	var cpu = cpu{disasm: disasm}
-	var divider divider
+func New(cartridge *Cartridge, debug bool) *GameBoy {
+	var cpu cpu
 	var timer timer
 	var interruptCtrl interruptCtrl
 	var dmaCtrl dmaCtrl
@@ -55,7 +104,6 @@ func New(cartridge *Cartridge, disasm bool) *GameBoy {
 
 	return &GameBoy{
 		cpu:           &cpu,
-		divider:       &divider,
 		timer:         &timer,
 		interruptCtrl: &interruptCtrl,
 		dmaCtrl:       &dmaCtrl,
@@ -64,15 +112,18 @@ func New(cartridge *Cartridge, disasm bool) *GameBoy {
 		serial:        &serial,
 		cartridge:     cartridge,
 		joypad:        &joypad,
+		debug:         debug,
 	}
 }
 
 func (gb *GameBoy) ExecuteInst() {
+	if gb.debug {
+		disassemble(gb, os.Stdout)
+	}
 	gb.cpu.clock(gb)
 }
 
 func (gb *GameBoy) clockCompensate() {
-	gb.divider.clock(gb)
 	gb.timer.clock(gb)
 	gb.timer.clock(gb)
 	gb.timer.clock(gb)
@@ -157,11 +208,17 @@ func (gb *GameBoy) PowerOn() {
 	gb.write(ioRegs.WX, 0x00)
 	gb.write(ioRegs.IE, 0x00)
 
-	*gb.divider = 0xABCC
+	gb.timer.DIV = 0xABCC
+	gb.joypad.p1 = 0xCF
+
+	gb.state = run
 }
 func (gb *GameBoy) PowerOff()             {}
 func (gb *GameBoy) SetVolume(vol float64) {}
-func (gb *GameBoy) Press(btns Button)     {}
+
+func (gb *GameBoy) Press(btns Button, pressed bool) {
+	gb.joypad.press(gb, btns, pressed)
+}
 
 func (gb *GameBoy) DumpWram() error {
 	f, err := ioutil.TempFile(".", "wram-*.bin")
@@ -435,7 +492,8 @@ func (gb *GameBoy) write(addr uint16, v uint8) {
 
 	// dma
 	if addr == 0xFF46 {
-		gb.ppu.write(addr, v)
+		gb.dmaCtrl.write(addr, v)
+		gb.state |= dma
 		return
 	}
 

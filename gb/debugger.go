@@ -27,9 +27,10 @@ func unmappedRead(subsystem string, addr uint16) {
 	dpanic("[%s] unmapped read from %04x", subsystem, addr)
 }
 
-func disassemble(pc uint16, gb *GameBoy, w io.Writer) {
+func disassemble(gb *GameBoy, w io.Writer) {
+	pc := gb.cpu.PC
 	if !wroteHeader {
-		w.Write([]byte("[PC  ] op                [mem curval +-2] F    A  B  C  D  E  H  L  SP   IF   IE y-x    \n"))
+		w.Write([]byte("[PC  ] op                [mem curval +-2] F    A  B  C  D  E  H  L  SP   IF       IE       y-x     state                     \n"))
 		wroteHeader = true
 	}
 	var (
@@ -673,7 +674,7 @@ printInstr:
 	}
 	fmt.Fprintf(
 		w,
-		"%s %s %02x %02x %02x %02x %02x %02x %02x %04x %v %v %03d-%03d\n",
+		"%s %s %02x %02x %02x %02x %02x %02x %02x %04x %v %v %03d-%03d %d %s\n",
 		strings.Repeat(" ", secondColLen-wrote),
 		gb.cpu.F,
 		gb.cpu.A,
@@ -688,5 +689,7 @@ printInstr:
 		gb.interruptCtrl.IE,
 		gb.ppu.LY,
 		gb.ppu.clocks,
+		gb.machineCycles,
+		gb.state,
 	)
 }

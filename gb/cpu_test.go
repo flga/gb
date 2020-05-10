@@ -3943,9 +3943,6 @@ func testInst(mnemonic string, tt cpuSingleTest, t *testing.T) {
 		gb.cpu.PC = tt.pre.PC
 
 		for addr, v := range tt.bus {
-			if addr <= 0x7FFF {
-				fmt.Println("brk")
-			}
 			gb.write(addr, v)
 		}
 
@@ -4040,7 +4037,7 @@ func TestHalt(t *testing.T) {
 
 		gb.ExecuteInst() // handle int req
 
-		if got, want := gb.cpu.state, run; got != want {
+		if got, want := gb.state, run; got != want {
 			t.Fatalf("cpu.executeInst(0x76) state = %v, want %v", got, want)
 		}
 		if got, want := gb.cpu.IME, false; got != want {
@@ -4064,7 +4061,7 @@ func TestHalt(t *testing.T) {
 		}
 
 		gb.ExecuteInst() // RETI
-		if got, want := gb.cpu.state, run; got != want {
+		if got, want := gb.state, run; got != want {
 			t.Fatalf("cpu.executeInst(0x76) state = %v, want %v", got, want)
 		}
 		if got, want := gb.cpu.IME, true; got != want {
@@ -4128,7 +4125,7 @@ func TestHalt(t *testing.T) {
 
 		gb.ExecuteInst() // handle int req, but ignore it
 
-		if got, want := gb.cpu.state, run; got != want {
+		if got, want := gb.state, run; got != want {
 			t.Fatalf("cpu.executeInst(0x76) state = %v, want %v", got, want)
 		}
 		if got, want := gb.cpu.IME, false; got != want {
@@ -4152,7 +4149,7 @@ func TestHalt(t *testing.T) {
 		}
 
 		gb.ExecuteInst() // LD A,0x42
-		if got, want := gb.cpu.state, run; got != want {
+		if got, want := gb.state, run; got != want {
 			t.Fatalf("cpu.executeInst(0x76) state = %v, want %v", got, want)
 		}
 		if got, want := gb.cpu.IME, false; got != want {
@@ -4198,7 +4195,7 @@ func TestHalt(t *testing.T) {
 
 		gb.ExecuteInst() // HALT
 
-		if got, want := gb.cpu.state, run; got != want {
+		if got, want := gb.state, run; got != want {
 			t.Fatalf("cpu.executeInst(0x76) state = %v, want %v", got, want)
 		}
 		if got, want := gb.cpu.IME, false; got != want {
@@ -4215,7 +4212,7 @@ func TestHalt(t *testing.T) {
 		}
 
 		gb.ExecuteInst() // LD A,0x3C (should store 0x3E in A due to hw bug) and do INC A after
-		if got, want := gb.cpu.state, run; got != want {
+		if got, want := gb.state, run; got != want {
 			t.Fatalf("cpu.executeInst(0x76) state = %v, want %v", got, want)
 		}
 		if got, want := gb.cpu.IME, false; got != want {
@@ -4232,7 +4229,7 @@ func TestHalt(t *testing.T) {
 		}
 
 		gb.ExecuteInst() // "INC A"
-		if got, want := gb.cpu.state, run; got != want {
+		if got, want := gb.state, run; got != want {
 			t.Fatalf("cpu.executeInst(0x76) state = %v, want %v", got, want)
 		}
 		if got, want := gb.cpu.IME, false; got != want {

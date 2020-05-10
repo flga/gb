@@ -1,9 +1,5 @@
 package gb
 
-import (
-	"os"
-)
-
 type op func(opcode uint8, gb *GameBoy)
 
 const (
@@ -12,15 +8,6 @@ const (
 	vectorTimer  uint16 = 0x50
 	vectorSerial uint16 = 0x58
 	vectorHTL    uint16 = 0x60
-)
-
-type cpuState uint8
-
-const (
-	run cpuState = iota
-	stop
-	halt
-	interruptDispatch
 )
 
 type cpuFlags uint8
@@ -79,13 +66,9 @@ type cpu struct {
 	SP   uint16
 	PC   uint16
 
-	disasm bool
-
 	skipPCIncBug bool
 	scheduleIME  bool
 	IME          bool
-
-	state cpuState
 
 	table   [256]op
 	cbTable [256]op
@@ -154,12 +137,15 @@ func (c *cpu) writeTo(gb *GameBoy, addr uint16, v uint8) {
 }
 
 func (c *cpu) clock(gb *GameBoy) {
-	switch c.state {
-	case run:
-		op := c.readFrom(gb, c.PC)
-		if c.disasm {
-			disassemble(c.PC, gb, os.Stdout)
+	switch {
+	case gb.state&dma > 0:
+		if gb.interruptCtrl.raised(anyInterrupt) > 0 && c.IME {
+			gb.state |= interruptDispatch
 		}
+		gb.clockCompensate()
+
+	case gb.state&run > 0:
+		op := c.readFrom(gb, c.PC)
 
 		if c.scheduleIME {
 			c.scheduleIME = false
@@ -173,9 +159,9 @@ func (c *cpu) clock(gb *GameBoy) {
 		c.table[op](op, gb)
 
 		if gb.interruptCtrl.raised(anyInterrupt) > 0 && c.IME {
-			c.state = interruptDispatch
+			gb.state = interruptDispatch
 		}
-	case interruptDispatch:
+	case gb.state&interruptDispatch > 0:
 		// TODO: we might be missing a cycle here (if the 1st cycle is not the PC fetch)
 		var vector uint16
 
@@ -212,13 +198,15 @@ func (c *cpu) clock(gb *GameBoy) {
 		}
 
 		c.PC = vector
-		c.state = run
+		if gb.state&dma == 0 {
+			gb.state = run
+		}
 
-	case halt:
+	case gb.state&halt > 0:
 		switch c.IME {
 		case true:
 			if gb.interruptCtrl.raised(anyInterrupt) > 0 {
-				c.state = interruptDispatch
+				gb.state = interruptDispatch
 				c.clock(gb)
 			} else {
 				gb.clockCompensate()
@@ -236,13 +224,13 @@ func (c *cpu) clock(gb *GameBoy) {
 				gb.clockCompensate()
 				gb.clockCompensate()
 
-				c.state = run
+				gb.state = run
 			} else {
 				gb.clockCompensate()
 			}
 		}
 
-	case stop:
+	case gb.state&stop > 0:
 		panic("not implemented")
 	}
 }
@@ -805,17 +793,17 @@ func (c *cpu) ei(opcode uint8, gb *GameBoy) {
 func (c *cpu) halt(opcode uint8, gb *GameBoy) {
 	// IME set
 	if c.IME {
-		c.state = halt
+		gb.state = halt
 		return
 	}
 
 	// Some pending
 	if gb.interruptCtrl.raised(anyInterrupt) > 0 {
 		c.skipPCIncBug = true
-		c.state = run
+		gb.state = run
 		return
 	} else {
-		c.state = halt
+		gb.state = halt
 		return
 	}
 }
@@ -2051,14 +2039,14 @@ func (c *cpu) xor_r(opcode uint8, gb *GameBoy) {
 	c.F.set(CY, false)
 }
 
-// 0x46 BIT 0,(HL)      2 16 0 Z 0 1 -
-// 0x4E BIT 1,(HL)      2 16 0 Z 0 1 -
-// 0x56 BIT 2,(HL)      2 16 0 Z 0 1 -
-// 0x5E BIT 3,(HL)      2 16 0 Z 0 1 -
-// 0x66 BIT 4,(HL)      2 16 0 Z 0 1 -
-// 0x6E BIT 5,(HL)      2 16 0 Z 0 1 -
-// 0x76 BIT 6,(HL)      2 16 0 Z 0 1 -
-// 0x7E BIT 7,(HL)      2 16 0 Z 0 1 -
+// 0x46 BIT 0,(HL)      2 12 0 Z 0 1 -
+// 0x4E BIT 1,(HL)      2 12 0 Z 0 1 -
+// 0x56 BIT 2,(HL)      2 12 0 Z 0 1 -
+// 0x5E BIT 3,(HL)      2 12 0 Z 0 1 -
+// 0x66 BIT 4,(HL)      2 12 0 Z 0 1 -
+// 0x6E BIT 5,(HL)      2 12 0 Z 0 1 -
+// 0x76 BIT 6,(HL)      2 12 0 Z 0 1 -
+// 0x7E BIT 7,(HL)      2 12 0 Z 0 1 -
 func (c *cpu) bit_irr(opcode uint8, gb *GameBoy) {
 	addr := uint16(c.H)<<8 | uint16(c.L)
 	v := c.readFrom(gb, addr)
@@ -2086,8 +2074,6 @@ func (c *cpu) bit_irr(opcode uint8, gb *GameBoy) {
 	c.F.set(Z, v&mask == 0)
 	c.F.set(N, false)
 	c.F.set(H, true)
-
-	_ = c.readFrom(gb, c.PC)
 }
 
 // 0x40 BIT 0,B 2 8 0 Z 0 1 -
