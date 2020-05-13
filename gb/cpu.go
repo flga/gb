@@ -138,11 +138,11 @@ func (c *cpu) writeTo(gb *GameBoy, addr uint16, v uint8) {
 
 func (c *cpu) clock(gb *GameBoy) {
 	switch {
-	case gb.state&dma > 0:
-		if gb.interruptCtrl.raised(anyInterrupt) > 0 && c.IME {
-			gb.state |= interruptDispatch
-		}
-		gb.clockCompensate()
+	// case gb.state&dma > 0:
+	// 	if gb.interruptCtrl.raised(anyInterrupt) > 0 && c.IME {
+	// 		gb.state |= interruptDispatch
+	// 	}
+	// 	gb.clockCompensate()
 
 	case gb.state&run > 0:
 		op := c.readFrom(gb, c.PC)
@@ -198,9 +198,9 @@ func (c *cpu) clock(gb *GameBoy) {
 		}
 
 		c.PC = vector
-		if gb.state&dma == 0 {
-			gb.state = run
-		}
+		// if gb.state&dma == 0 {
+		gb.state = run
+		// }
 
 	case gb.state&halt > 0:
 		switch c.IME {

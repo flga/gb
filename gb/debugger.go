@@ -30,7 +30,7 @@ func unmappedRead(subsystem string, addr uint16) {
 func disassemble(gb *GameBoy, w io.Writer) {
 	pc := gb.cpu.PC
 	if !wroteHeader {
-		w.Write([]byte("[PC  ] op                [mem curval +-2] F    A  B  C  D  E  H  L  SP   IF       IE       y-x     state                     \n"))
+		w.Write([]byte("[PC  ] op                [mem curval +-2] F    A  B  C  D  E  H  L  SP   IF       IE       y-x     ppu stat state                     \n"))
 		wroteHeader = true
 	}
 	var (
@@ -674,7 +674,7 @@ printInstr:
 	}
 	fmt.Fprintf(
 		w,
-		"%s %s %02x %02x %02x %02x %02x %02x %02x %04x %v %v %03d-%03d %d %s\n",
+		"%s %s %02x %02x %02x %02x %02x %02x %02x %04x %v %v %03d-%03d %d %08b %s\n",
 		strings.Repeat(" ", secondColLen-wrote),
 		gb.cpu.F,
 		gb.cpu.A,
@@ -690,6 +690,7 @@ printInstr:
 		gb.ppu.LY,
 		gb.ppu.clocks,
 		gb.machineCycles,
+		gb.ppu.STAT,
 		gb.state,
 	)
 }

@@ -147,6 +147,13 @@ func (gb *GameBoy) ClockFrame() []uint8 {
 	return gb.ppu.frame[:]
 }
 
+func (gb *GameBoy) DrawNametables() []uint8 {
+	return gb.ppu.nametables.Pix
+}
+func (gb *GameBoy) DrawVram() []uint8 {
+	return gb.ppu.vram.Pix
+}
+
 func (gb *GameBoy) InsertCartridge(r io.Reader) error {
 	c, err := NewCartridge(r)
 	if err != nil {
@@ -516,6 +523,10 @@ func (gb *GameBoy) write(addr uint16, v uint8) {
 	}
 
 	// panic(fmt.Sprintf("unmapped write at 0%X", addr))
+}
+
+func (gb *GameBoy) ToggleDebugInfo() {
+	gb.debug = !gb.debug
 }
 
 type busDevice interface {
