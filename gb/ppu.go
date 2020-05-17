@@ -3,17 +3,57 @@ package gb
 import (
 	"image"
 	"image/color"
+	"math/bits"
 )
 
 type sprite struct {
-	y, x, tile, flags uint8
+	y, x, tile uint8
+	flags      spriteFlags
 }
 
+type spriteFlags uint8
+
+const (
+	spriteCGBPalette  = 0x07            // Bit2-0 Palette number  **CGB Mode Only**     (OBP0-7) (Used for both BG and Window. BG color 0 is always behind OBJ)
+	spriteCGBVramBank = 1 << (iota + 2) // Bit3   Tile VRAM-Bank  **CGB Mode Only**     (0=Bank 0, 1=Bank 1)
+	spriptePalette                      // Bit4   Palette number  **Non CGB Mode Only** (0=OBP0, 1=OBP1)
+	spriteFlipX                         // Bit5   X flip          (0=Normal, 1=Horizontally mirrored)
+	spriteFlipY                         // Bit6   Y flip          (0=Normal, 1=Vertically mirrored)
+	spritePriority                      // Bit7   OBJ-to-BG Priority (0=OBJ Above BG, 1=OBJ Behind BG color 1-3)
+)
+
+func (f spriteFlags) String() string {
+	buf := make([]rune, 0, 30)
+
+	buf = append(buf, 'C', 'G', '_', 'O', 'B', 'P', rune(48+(f&spriteCGBPalette)))
+	buf = append(buf, '|', 'B', 'A', 'N', 'K', rune(48+(f&spriteCGBVramBank)))
+	buf = append(buf, '|', 'O', 'B', 'P', rune(48+(f&spriteCGBVramBank)))
+	if f&spriteFlipX > 0 {
+		buf = append(buf, '|', 'X')
+	}
+	if f&spriteFlipY > 0 {
+		buf = append(buf, '|', 'Y')
+	}
+	if f&spritePriority > 0 {
+		buf = append(buf, '|', 'O', 'V', 'E', 'R')
+	}
+
+	return string(buf)
+}
+
+// var basePalette = [4]color.RGBA{
+// 	{0xFF, 0xFF, 0xFF, 0xFF},
+// 	{0xCC, 0xCC, 0xCC, 0xFF},
+// 	{0x33, 0x33, 0x33, 0xFF},
+// 	{0x00, 0x00, 0x00, 0xFF},
+// }
+
 var basePalette = [4]color.RGBA{
-	{0xFF, 0xFF, 0xFF, 0xFF},
-	{0xCC, 0xCC, 0xCC, 0xFF},
-	{0x33, 0x33, 0x33, 0xFF},
-	{0x00, 0x00, 0x00, 0xFF},
+	// {0xd2, 0xe6, 0xa6,0xff}, // LCD OFF
+	{0xc6, 0xde, 0x8c, 0xff},
+	{0x84, 0xa5, 0x63, 0xff},
+	{0x39, 0x61, 0x39, 0xff},
+	{0x08, 0x18, 0x10, 0xff},
 }
 
 type lcdc uint8
@@ -117,9 +157,12 @@ type ppu struct {
 	frame   [160 * 144 * 4]uint8
 	clocks  uint64
 
-	nametables *image.RGBA
-	vram       *image.RGBA
-	frames     uint64
+	nametables     *image.RGBA
+	vram           *image.RGBA
+	frames         uint64
+	hideSprites    bool
+	hideBackground bool
+	hideWindow     bool
 }
 
 func (p *ppu) clock(gb *GameBoy) {
@@ -165,8 +208,8 @@ func (p *ppu) clock(gb *GameBoy) {
 		p.STAT.setMode(modeVblank)
 		if p.clocks == 0 && p.LY == 144 {
 			p.frames++
-			// p.drawNametables()
-			// p.drawVram()
+			p.drawNametables()
+			p.drawVram()
 			gb.interruptCtrl.raise(vblankInterrupt)
 			if p.STAT.vblIntEnabled() {
 				gb.interruptCtrl.raise(lcdStatInterrupt)
@@ -187,23 +230,43 @@ func (p *ppu) clock(gb *GameBoy) {
 }
 
 func (p *ppu) drawLine() {
+	wy := p.WY
+	wx := p.WX - 7
 	fineY := p.LY
 	for fineX := uint8(0); fineX < 160; fineX++ {
-		row := (fineY + p.SCY) % 8
-		tileIndex := p.tileIndex(fineX, fineY)
+		var window bool
+		var tileIndex uint8
+		var row uint8
+		var tileLo, tileHi uint8
+		if p.LCDC.windowEnabled() && p.LY >= wy && fineX >= wx {
+			window = true
+			row = (p.LY - wy) % 8
+			tileIndex = p.tileIndex(fineX-wx, p.LY-wy, window)
+			addr := p.tileBaseAddr(tileIndex) + uint16(row)*2
+			tileLo = p.read(addr)
+			tileHi = p.read(addr + 1)
 
-		addr := p.tileBaseAddr(tileIndex) + uint16(row)*2
-		tileLo := p.read(addr)
-		tileHi := p.read(addr + 1)
+			tileHi <<= (fineX - wx) % 8
+			tileLo <<= (fineX - wx) % 8
+		} else {
+			row = (fineY + p.SCY) % 8
+			tileIndex = p.tileIndex(fineX+p.SCX, fineY+p.SCY, window)
+			addr := p.tileBaseAddr(tileIndex) + uint16(row)*2
+			tileLo = p.read(addr)
+			tileHi = p.read(addr + 1)
 
-		tileHi <<= (fineX + p.SCX) % 8
-		tileLo <<= (fineX + p.SCX) % 8
+			tileHi <<= (fineX + p.SCX) % 8
+			tileLo <<= (fineX + p.SCX) % 8
+		}
 
 		pixelLo := tileLo & 0x80 >> 7
 		pixelHi := tileHi & 0x80 >> 7
 		paletteIdx := pixelHi<<1 | pixelLo
 		colour := p.paletteLookup(paletteIdx, p.BGP)
 
+		if (window && p.hideWindow) || (!window && p.hideBackground) {
+			colour = color.RGBA{}
+		}
 		offset := int(fineY)*160*4 + int(fineX)*4
 		p.frame[offset+0] = colour.R
 		p.frame[offset+1] = colour.G
@@ -216,18 +279,19 @@ func (p *ppu) drawLine() {
 	}
 }
 
-func (p *ppu) tileIndex(x, y uint8) uint8 {
-	y += p.SCY
-	x += p.SCX
+func (p *ppu) tileIndex(x, y uint8, window bool) uint8 {
 	offset := uint16(y/8)*32 + uint16(x/8)
-	if p.LCDC&lcdcBgSelect == 0 {
-		return p.Nametable1[offset]
-	}
-	if p.LCDC&lcdcBgSelect > 0 {
-		return p.Nametable2[offset]
+
+	mask := lcdcBgSelect
+	if window {
+		mask = lcdcWindowSelect
 	}
 
-	panic("?")
+	if p.LCDC&mask == 0 {
+		return p.Nametable1[offset]
+	}
+
+	return p.Nametable2[offset]
 }
 
 func (p *ppu) tileBaseAddr(tileIdx uint8) uint16 {
@@ -349,19 +413,27 @@ func (p *ppu) drawSprites() {
 
 	for i := 0; i < 40; i++ {
 		var (
-			spriteY     = p.OAM[i*4+0] - 16
+			spriteY     = int(p.OAM[i*4+0]) - 16
 			spriteX     = p.OAM[i*4+1] - 8
 			spriteTile  = p.OAM[i*4+2]
-			spriteFlags = p.OAM[i*4+3]
+			spriteFlags = spriteFlags(p.OAM[i*4+3])
 		)
 
 		row := int(p.LY) - int(spriteY)
 		if row < 0 || row > 7 {
 			continue
 		}
+		if spriteFlags&spriteFlipY > 0 {
+			row ^= 0x07
+		}
 		addr := 0x8000 + uint16(spriteTile)*16 + uint16(row)*2
 		tileLo := p.read(addr)
 		tileHi := p.read(addr + 1)
+
+		if spriteFlags&spriteFlipX > 0 {
+			tileLo = bits.Reverse8(tileLo)
+			tileHi = bits.Reverse8(tileHi)
+		}
 
 		for fineX := byte(0); fineX < 8; fineX++ {
 			x := spriteX + fineX
@@ -383,10 +455,14 @@ func (p *ppu) drawSprites() {
 
 			var colour color.RGBA
 			switch {
-			case spriteFlags&(1<<4) == 0:
+			case spriteFlags&spriptePalette == 0:
 				colour = p.paletteLookup(paletteIdx, p.OBP0)
-			case spriteFlags&(1<<4) > 0:
+			case spriteFlags&spriptePalette > 0:
 				colour = p.paletteLookup(paletteIdx, p.OBP1)
+			}
+
+			if p.hideSprites {
+				continue
 			}
 
 			offset := int(p.LY)*160*4 + int(x)*4
@@ -411,7 +487,7 @@ func (p *ppu) oamSearch() { // TODO
 			y:     p.OAM[i*4+0],
 			x:     p.OAM[i*4+1],
 			tile:  p.OAM[i*4+2],
-			flags: p.OAM[i*4+3],
+			flags: spriteFlags(p.OAM[i*4+3]),
 		}
 		idx++
 

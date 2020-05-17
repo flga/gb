@@ -3,8 +3,83 @@ package gb
 import (
 	"bytes"
 	"os"
+	"path/filepath"
 	"testing"
 )
+
+func TestCpuInstr(t *testing.T) {
+	tests := []string{
+		testRom("cpu_instrs/individual/01-special.gb"),
+		testRom("cpu_instrs/individual/02-interrupts.gb"),
+		testRom("cpu_instrs/individual/03-op sp,hl.gb"),
+		testRom("cpu_instrs/individual/04-op r,imm.gb"),
+		testRom("cpu_instrs/individual/05-op rp.gb"),
+		testRom("cpu_instrs/individual/06-ld r,r.gb"),
+		testRom("cpu_instrs/individual/07-jr,jp,call,ret,rst.gb"),
+		testRom("cpu_instrs/individual/08-misc instrs.gb"),
+		testRom("cpu_instrs/individual/09-op r,r.gb"),
+		testRom("cpu_instrs/individual/10-bit ops.gb"),
+		testRom("cpu_instrs/individual/11-op a,(hl).gb"),
+	}
+	for _, tt := range tests {
+		t.Run(tt, func(t *testing.T) {
+			blarggTest(tt, t)
+		})
+	}
+}
+
+func TestInstrTiming(t *testing.T) {
+	tests := []string{
+		testRom("instr_timing/instr_timing.gb"),
+	}
+	for _, tt := range tests {
+		t.Run(tt, func(t *testing.T) {
+			blarggTest(tt, t)
+		})
+	}
+}
+
+func TestMemTiming(t *testing.T) {
+	tests := []string{
+		testRom("mem_timing/individual/01-read_timing.gb"),
+		testRom("mem_timing/individual/02-write_timing.gb"),
+		testRom("mem_timing/individual/03-modify_timing.gb"),
+		testRom("mem_timing-2/rom_singles/01-read_timing.gb"),
+		testRom("mem_timing-2/rom_singles/02-write_timing.gb"),
+		testRom("mem_timing-2/rom_singles/03-modify_timing.gb"),
+	}
+	for _, tt := range tests {
+		t.Run(tt, func(t *testing.T) {
+			blarggTest(tt, t)
+		})
+	}
+}
+
+func TestInterruptTiming(t *testing.T) {
+	t.Skip("cgb")
+	tests := []string{
+		testRom("interrupt_time/interrupt_time.gb"),
+	}
+	for _, tt := range tests {
+		t.Run(tt, func(t *testing.T) {
+			blarggTest(tt, t)
+		})
+	}
+}
+
+func TestHaltBug(t *testing.T) {
+	t.Skip()
+	tests := []string{
+		testRom("halt_bug.gb"),
+	}
+	for _, tt := range tests {
+		t.Run(tt, func(t *testing.T) {
+			blarggTest(tt, t)
+		})
+	}
+}
+
+func testRom(path string) string { return filepath.Join("../testdata/gb-test-roms", path) }
 
 type testSerialCtrl struct {
 	buf []byte
@@ -33,7 +108,18 @@ func (s *testSerialCtrl) passed() int {
 	return -1
 }
 
-func blarggTest(cart *Cartridge, t *testing.T) {
+func blarggTest(path string, t *testing.T) {
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	cart, err := NewCartridge(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	gb := New(cart, false)
 
 	var ctrl testSerialCtrl
@@ -41,7 +127,7 @@ func blarggTest(cart *Cartridge, t *testing.T) {
 
 	gb.PowerOn()
 
-	for gb.machineCycles < 0x1FFFFFF {
+	for gb.machineCycles < 0x8FFFFFF {
 		gb.ExecuteInst()
 
 		status := ctrl.passed()
@@ -58,108 +144,4 @@ func blarggTest(cart *Cartridge, t *testing.T) {
 	}
 
 	t.Fatal("timeout")
-}
-
-func TestCpuInstr(t *testing.T) {
-	tests := []string{
-		"01-special.gb",
-		"02-interrupts.gb",
-		"03-op sp,hl.gb",
-		"04-op r,imm.gb",
-		"05-op rp.gb",
-		"06-ld r,r.gb",
-		"07-jr,jp,call,ret,rst.gb",
-		"08-misc instrs.gb",
-		"09-op r,r.gb",
-		"10-bit ops.gb",
-		"11-op a,(hl).gb",
-	}
-	for _, tt := range tests {
-		t.Run(tt, func(t *testing.T) {
-			f, err := os.Open("../testdata/gb-test-roms/cpu_instrs/individual/" + tt)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer f.Close()
-
-			cart, err := NewCartridge(f)
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			blarggTest(cart, t)
-		})
-	}
-}
-
-func TestInstrTiming(t *testing.T) {
-	tests := []string{
-		"instr_timing.gb",
-	}
-	for _, tt := range tests {
-		t.Run(tt, func(t *testing.T) {
-			f, err := os.Open("../testdata/gb-test-roms/instr_timing/" + tt)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer f.Close()
-
-			cart, err := NewCartridge(f)
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			blarggTest(cart, t)
-		})
-	}
-}
-
-func TestMemTiming(t *testing.T) {
-	tests := []string{
-		"mem_timing/individual/01-read_timing.gb",
-		"mem_timing/individual/02-write_timing.gb",
-		"mem_timing/individual/03-modify_timing.gb",
-		// "mem_timing-2/rom_singles/01-read_timing.gb",
-		// "mem_timing-2/rom_singles/02-write_timing.gb",
-		// "mem_timing-2/rom_singles/03-modify_timing.gb",
-	}
-	for _, tt := range tests {
-		t.Run(tt, func(t *testing.T) {
-			f, err := os.Open("../testdata/gb-test-roms/" + tt)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer f.Close()
-
-			cart, err := NewCartridge(f)
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			blarggTest(cart, t)
-		})
-	}
-}
-
-func TestHaltBug(t *testing.T) {
-	t.Skip()
-	tests := []string{
-		"halt_bug.gb",
-	}
-	for _, tt := range tests {
-		t.Run(tt, func(t *testing.T) {
-			f, err := os.Open("../testdata/gb-test-roms/" + tt)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer f.Close()
-
-			cart, err := NewCartridge(f)
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			blarggTest(cart, t)
-		})
-	}
 }

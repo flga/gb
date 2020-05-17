@@ -154,6 +154,16 @@ func (gb *GameBoy) DrawVram() []uint8 {
 	return gb.ppu.vram.Pix
 }
 
+func (gb *GameBoy) ToggleSprites() {
+	gb.ppu.hideSprites = !gb.ppu.hideSprites
+}
+func (gb *GameBoy) ToggleBackground() {
+	gb.ppu.hideBackground = !gb.ppu.hideBackground
+}
+func (gb *GameBoy) ToggleWindow() {
+	gb.ppu.hideWindow = !gb.ppu.hideWindow
+}
+
 func (gb *GameBoy) InsertCartridge(r io.Reader) error {
 	c, err := NewCartridge(r)
 	if err != nil {
