@@ -120,12 +120,14 @@ func blarggTest(path string, t *testing.T) {
 		t.Fatal(err)
 	}
 
-	gb := New(cart, false)
+	var gb GameBoy
+	if err := gb.InsertCartridge(cart, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	gb.PowerOn()
 
 	var ctrl testSerialCtrl
 	gb.serial = &ctrl
-
-	gb.PowerOn()
 
 	for gb.machineCycles < 0x8FFFFFF {
 		gb.ExecuteInst()

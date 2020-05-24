@@ -124,7 +124,7 @@ printInstr:
 		writef8("LD L,%02Xh", read8())
 	case 0x36:
 		writef8("LD (HL),%02Xh", read8())
-		writePeek(uint16(H)<<8 | uint16(gb.cpu.L))
+		writePeek(uint16(gb.cpu.H)<<8 | uint16(gb.cpu.L))
 	case 0x3E:
 		writef8("LD A,%02Xh", read8())
 	case 0xC6:
@@ -211,7 +211,7 @@ printInstr:
 		write("NOP")
 	case 0x02:
 		write("LD (BC),A")
-		writePeek(uint16(B)<<8 | uint16(gb.cpu.C))
+		writePeek(uint16(gb.cpu.B)<<8 | uint16(gb.cpu.C))
 	case 0x03:
 		write("INC BC")
 	case 0x04:

@@ -1,7 +1,6 @@
 package gb
 
 import (
-	"image"
 	"image/color"
 	"math/bits"
 )
@@ -148,17 +147,17 @@ type ppu struct {
 	OBP1 uint8   // Object Palette 1 Data (R/W)
 	DMA  uint8   // DMA Transfer and Start Address (R/W)
 
-	VRAM       [8 * KiB]byte
-	OAM        [160]byte
-	Nametable1 [1 * KiB]byte
-	Nametable2 [1 * KiB]byte
+	VRAM [8 * KiB]byte
+	OAM  [160]byte
+	// Nametable1 [1 * KiB]byte
+	// Nametable2 [1 * KiB]byte
 
 	sprites [10]sprite
 	frame   [160 * 144 * 4]uint8
 	clocks  uint64
 
-	nametables     *image.RGBA
-	vram           *image.RGBA
+	nametables     [512 * 256 * 4]byte
+	vram           [128 * 192 * 4]byte
 	frames         uint64
 	hideSprites    bool
 	hideBackground bool
@@ -167,7 +166,7 @@ type ppu struct {
 
 func (p *ppu) clock(gb *GameBoy) {
 	if !p.LCDC.displayEnabled() {
-		// return
+		return
 	}
 
 	switch {
@@ -185,7 +184,7 @@ func (p *ppu) clock(gb *GameBoy) {
 
 		// mode 3 (draw)
 		if p.clocks >= 80 && p.clocks <= 251 {
-			if p.clocks == 80 {
+			if p.clocks >= 80 {
 				p.STAT.setMode(modeTransfer)
 			}
 
@@ -238,7 +237,8 @@ func (p *ppu) drawLine() {
 		var tileIndex uint8
 		var row uint8
 		var tileLo, tileHi uint8
-		if p.LCDC.windowEnabled() && p.LY >= wy && fineX >= wx {
+
+		if p.LCDC.windowEnabled() && p.LY >= wy && fineX+7 >= wx+7 {
 			window = true
 			row = (p.LY - wy) % 8
 			tileIndex = p.tileIndex(fineX-wx, p.LY-wy, window)
@@ -288,10 +288,10 @@ func (p *ppu) tileIndex(x, y uint8, window bool) uint8 {
 	}
 
 	if p.LCDC&mask == 0 {
-		return p.Nametable1[offset]
+		return p.read(0x9800 + offset)
 	}
 
-	return p.Nametable2[offset]
+	return p.read(0x9C00 + offset)
 }
 
 func (p *ppu) tileBaseAddr(tileIdx uint8) uint16 {
@@ -332,17 +332,32 @@ func (p *ppu) read(addr uint16) uint8 {
 		return p.OBP1
 	}
 
-	if addr >= 0x9800 && addr <= 0x9BFF {
-		return p.Nametable1[addr-0x9800]
-	}
-	if addr >= 0x9C00 && addr <= 0x9FFF {
-		return p.Nametable2[addr-0x9C00]
-	}
+	// if addr >= 0x9800 && addr <= 0x9BFF {
+	// 	if p.STAT&lcdStatMode == 3 {
+	// 		// return 0xFF
+	// 	}
+	// 	return p.Nametable1[addr-0x9800]
+	// }
+	// if addr >= 0x9C00 && addr <= 0x9FFF {
+	// 	if p.STAT&lcdStatMode == 3 {
+	// 		// return 0xFF
+	// 	}
+	// 	return p.Nametable2[addr-0x9C00]
+	// }
 
 	if addr >= 0x8000 && addr <= 0x9FFF {
+		if p.STAT&lcdStatMode == 3 {
+			// return 0xFF
+		}
 		return p.VRAM[addr-0x8000]
 	}
 
+	if addr >= 0xFE00 && addr <= 0xFE9F {
+		if p.STAT&lcdStatMode == 2 || p.STAT&lcdStatMode == 3 {
+			// return 0xFF
+		}
+		return p.OAM[addr-0xFE00]
+	}
 	// fmt.Fprintf(os.Stderr, "unhandled ppu read 0x%04X\n", addr)
 	// panic(fmt.Sprintf("unhandled ppu read 0x%04X", addr))
 	return 0
@@ -352,6 +367,8 @@ func (p *ppu) write(addr uint16, v uint8) {
 	switch addr {
 	case 0xFF40:
 		p.LCDC = lcdc(v)
+		// p.LY = 0
+		// p.clocks = 0
 		return
 	case 0xFF41:
 		p.STAT.write(v)
@@ -382,21 +399,18 @@ func (p *ppu) write(addr uint16, v uint8) {
 		return
 	}
 
-	if addr >= 0x9800 && addr <= 0x9BFF {
-		p.Nametable1[addr-0x9800] = v
-		return
-	}
-	if addr >= 0x9C00 && addr <= 0x9FFF {
-		p.Nametable2[addr-0x9C00] = v
-		return
-	}
-
 	if addr >= 0x8000 && addr <= 0x9FFF {
+		if p.STAT&lcdStatMode == 3 {
+			// return
+		}
 		p.VRAM[addr-0x8000] = v
 		return
 	}
 
 	if addr >= 0xFE00 && addr <= 0xFE9F {
+		if p.STAT&lcdStatMode == 2 || p.STAT&lcdStatMode == 3 {
+			// return
+		}
 		p.OAM[addr-0xFE00] = v
 		return
 	}
@@ -419,12 +433,14 @@ func (p *ppu) drawSprites() {
 			spriteFlags = spriteFlags(p.OAM[i*4+3])
 		)
 
+		height := int(p.LCDC.spriteHeight())
+
 		row := int(p.LY) - int(spriteY)
-		if row < 0 || row > 7 {
+		if row < 0 || row > height-1 {
 			continue
 		}
 		if spriteFlags&spriteFlipY > 0 {
-			row ^= 0x07
+			row ^= height - 1
 		}
 		addr := 0x8000 + uint16(spriteTile)*16 + uint16(row)*2
 		tileLo := p.read(addr)
@@ -502,13 +518,10 @@ func (p *ppu) paletteLookup(id, palette uint8) color.RGBA {
 	return basePalette[palette>>shift&0x03]
 }
 
-func (p *ppu) drawNametables() *image.RGBA {
-	if p.nametables == nil {
-		p.nametables = image.NewRGBA(image.Rect(0, 0, 512, 256))
-	}
+func (p *ppu) drawNametables() {
 	for y := 0; y < 32; y++ {
 		for x := 0; x < 32; x++ {
-			tileId := p.Nametable1[y*32+x]
+			tileId := p.read(0x9800 + uint16(y*32+x))
 			addr := p.tileBaseAddr(tileId)
 			for fineY := 0; fineY < 8; fineY++ {
 				tileLo := p.read(addr)
@@ -524,15 +537,53 @@ func (p *ppu) drawNametables() *image.RGBA {
 					tileLo <<= 1
 					tileHi <<= 1
 
-					p.nametables.Set(x*8+fineX, y*8+fineY, colour)
+					offset := (y*8+fineY)*512*4 + (x*8+fineX)*4
+					p.nametables[offset+0] = colour.R
+					p.nametables[offset+1] = colour.G
+					p.nametables[offset+2] = colour.B
+					p.nametables[offset+3] = colour.A
 				}
 			}
 		}
 	}
 
+	xscroll := p.SCX
+	yscroll := p.SCY
+	colour := color.RGBA{0xff, 0x00, 0x00, 0xff}
+	for i := uint8(0); i < 20*8; i++ {
+		x := xscroll + i
+		offset := int(yscroll)*512*4 + int(x)*4
+		p.nametables[offset+0] = colour.R
+		p.nametables[offset+1] = colour.G
+		p.nametables[offset+2] = colour.B
+		p.nametables[offset+3] = colour.A
+
+		y := yscroll + 18*8
+		offset = int(y)*512*4 + int(x)*4
+		p.nametables[offset+0] = colour.R
+		p.nametables[offset+1] = colour.G
+		p.nametables[offset+2] = colour.B
+		p.nametables[offset+3] = colour.A
+	}
+	for i := uint8(0); i < 18*8; i++ {
+		y := yscroll + i
+		offset := int(y)*512*4 + int(xscroll)*4
+		p.nametables[offset+0] = colour.R
+		p.nametables[offset+1] = colour.G
+		p.nametables[offset+2] = colour.B
+		p.nametables[offset+3] = colour.A
+
+		x := xscroll + 20*8
+		offset = int(y)*512*4 + int(x)*4
+		p.nametables[offset+0] = colour.R
+		p.nametables[offset+1] = colour.G
+		p.nametables[offset+2] = colour.B
+		p.nametables[offset+3] = colour.A
+	}
+
 	for y := 0; y < 32; y++ {
 		for x := 0; x < 32; x++ {
-			tileId := p.Nametable2[y*32+x]
+			tileId := p.read(0x9C00 + uint16(y*32+x))
 			addr := p.tileBaseAddr(tileId)
 			for fineY := 0; fineY < 8; fineY++ {
 				tileLo := p.read(addr)
@@ -548,19 +599,18 @@ func (p *ppu) drawNametables() *image.RGBA {
 					tileLo <<= 1
 					tileHi <<= 1
 
-					p.nametables.Set(256+x*8+fineX, y*8+fineY, colour)
+					offset := (y*8+fineY)*512*4 + (256+x*8+fineX)*4
+					p.nametables[offset+0] = colour.R
+					p.nametables[offset+1] = colour.G
+					p.nametables[offset+2] = colour.B
+					p.nametables[offset+3] = colour.A
 				}
 			}
 		}
 	}
-	return p.nametables
 }
 
-func (p *ppu) drawVram() *image.RGBA {
-	if p.vram == nil {
-		p.vram = image.NewRGBA(image.Rect(0, 0, 128, 192))
-	}
-
+func (p *ppu) drawVram() {
 	addr := uint16(0x8000)
 	for y := 0; y < 24; y++ {
 		for x := 0; x < 16; x++ {
@@ -579,14 +629,20 @@ func (p *ppu) drawVram() *image.RGBA {
 					tileLo <<= 1
 					tileHi <<= 1
 
-					p.vram.Set(x*8+fineX, y*8+fineY, colour)
-					// fmt.Println(y*8+fineY, x*8+fineX)
-					// _ = colour
-					// p.vram.Set(x*8+fineX, y*8+fineY, color.RGBA{0xff, 0x00, 0x00, 0xff})
+					offset := (y*8+fineY)*128*4 + (x*8+fineX)*4
+					p.vram[offset+0] = colour.R
+					p.vram[offset+1] = colour.G
+					p.vram[offset+2] = colour.B
+					p.vram[offset+3] = colour.A
 				}
 			}
 		}
 	}
+}
 
-	return p.vram
+func (p *ppu) nametableFrame() []uint8 {
+	return p.nametables[:]
+}
+func (p *ppu) vramFrame() []uint8 {
+	return p.vram[:]
 }

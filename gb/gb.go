@@ -2,6 +2,8 @@ package gb
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -89,106 +91,24 @@ type GameBoy struct {
 	wram wram
 
 	machineCycles uint64
-	debug         bool
-}
-
-func New(cartridge *Cartridge, debug bool) *GameBoy {
-	var cpu cpu
-	var timer timer
-	var interruptCtrl interruptCtrl
-	var dmaCtrl dmaCtrl
-	var apu = apu{p1: pulse{isPulse1: true}}
-	var ppu ppu
-	var serial serial
-	var joypad joypad
-
-	return &GameBoy{
-		cpu:           &cpu,
-		timer:         &timer,
-		interruptCtrl: &interruptCtrl,
-		dmaCtrl:       &dmaCtrl,
-		apu:           &apu,
-		ppu:           &ppu,
-		serial:        &serial,
-		cartridge:     cartridge,
-		joypad:        &joypad,
-		debug:         debug,
-	}
-}
-
-func (gb *GameBoy) ExecuteInst() {
-	if gb.debug {
-		disassemble(gb, os.Stdout)
-	}
-	gb.cpu.clock(gb)
-}
-
-func (gb *GameBoy) clockCompensate() {
-	gb.timer.clock(gb)
-	gb.timer.clock(gb)
-	gb.timer.clock(gb)
-	gb.timer.clock(gb)
-	gb.interruptCtrl.clock(gb)
-	gb.dmaCtrl.clock(gb)
-	gb.apu.clock(gb)
-	gb.ppu.clock(gb)
-	gb.ppu.clock(gb)
-	gb.ppu.clock(gb)
-	gb.ppu.clock(gb)
-	gb.serial.clock(gb)
-	gb.machineCycles++
-}
-
-func (gb *GameBoy) ClockFrame() []uint8 {
-	start := gb.machineCycles
-	for gb.machineCycles < start+17556 {
-		gb.ExecuteInst()
-	}
-	return gb.ppu.frame[:]
-}
-
-func (gb *GameBoy) DrawNametables() []uint8 {
-	return gb.ppu.nametables.Pix
-}
-func (gb *GameBoy) DrawVram() []uint8 {
-	return gb.ppu.vram.Pix
-}
-
-func (gb *GameBoy) ToggleSprites() {
-	gb.ppu.hideSprites = !gb.ppu.hideSprites
-}
-func (gb *GameBoy) ToggleBackground() {
-	gb.ppu.hideBackground = !gb.ppu.hideBackground
-}
-func (gb *GameBoy) ToggleWindow() {
-	gb.ppu.hideWindow = !gb.ppu.hideWindow
-}
-
-func (gb *GameBoy) InsertCartridge(r io.Reader) error {
-	c, err := NewCartridge(r)
-	if err != nil {
-		return err
-	}
-
-	gb.cartridge = c
-	gb.Reset()
-	return nil
-}
-
-func (gb *GameBoy) CartridgeInfo() CartridgeInfo {
-	if gb == nil || gb.cartridge == nil {
-		return CartridgeInfo{}
-	}
-
-	return gb.cartridge.info
-}
-
-func (gb *GameBoy) Reset() {
-	gb.cpu.PC = 0x0100
-	// TODO: proper reset procedure
+	Debug         bool
 }
 
 func (gb *GameBoy) PowerOn() {
+	if gb == nil {
+		return
+	}
+
+	gb.cpu = &cpu{}
+	gb.timer = &timer{}
+	gb.interruptCtrl = &interruptCtrl{}
+	gb.dmaCtrl = &dmaCtrl{}
+	gb.apu = &apu{p1: pulse{isPulse1: true}}
+	gb.ppu = &ppu{}
+	gb.serial = &serial{}
+	gb.joypad = &joypad{}
+	// gb.cartridge =     cartridge{}
+
 	gb.cpu.init(0x0100)
 
 	// io registers init
@@ -230,14 +150,149 @@ func (gb *GameBoy) PowerOn() {
 
 	gb.state = run
 }
-func (gb *GameBoy) PowerOff()             {}
+
+func (gb *GameBoy) InsertCartridge(cart *Cartridge, savReader io.Reader, savWriter io.WriteCloser) error {
+	if gb == nil {
+		return nil
+	}
+
+	if cart == nil {
+		return errors.New("gb: invalid cart")
+	}
+
+	if cart.Saveable() && (savReader == nil || savWriter == nil) {
+		return errors.New("gb: cart is saveable but reader or writer not provided")
+	}
+
+	if gb.cartridge != nil {
+		if err := gb.cartridge.save(); err != nil {
+			return err
+		}
+	}
+
+	gb.cartridge = cart
+	if !cart.Saveable() {
+		return nil
+	}
+
+	data, err := ioutil.ReadAll(savReader)
+	if err != nil {
+		return fmt.Errorf("gb: unable to read sav data: %w", err)
+	}
+	cart.loadSave(data)
+
+	cart.savWriter = savWriter
+
+	return nil
+}
+
+func (gb *GameBoy) Save() error {
+	return gb.cartridge.save()
+}
+
+func (gb *GameBoy) CartridgeInfo() CartridgeInfo {
+	if gb == nil || gb.cartridge == nil {
+		return CartridgeInfo{}
+	}
+
+	return gb.cartridge.CartridgeInfo
+}
+
 func (gb *GameBoy) SetVolume(vol float64) {}
 
 func (gb *GameBoy) Press(btns Button, pressed bool) {
+	if gb == nil {
+		return
+	}
+
 	gb.joypad.press(gb, btns, pressed)
 }
 
+func (gb *GameBoy) ExecuteInst() {
+	if gb == nil {
+		return
+	}
+
+	if gb.Debug {
+		disassemble(gb, os.Stdout)
+	}
+	gb.cpu.clock(gb)
+}
+
+func (gb *GameBoy) clockCompensate() {
+	if gb == nil {
+		return
+	}
+
+	gb.timer.clock(gb)
+	gb.timer.clock(gb)
+	gb.timer.clock(gb)
+	gb.timer.clock(gb)
+	gb.interruptCtrl.clock(gb)
+	gb.dmaCtrl.clock(gb)
+	gb.apu.clock(gb)
+	gb.ppu.clock(gb)
+	gb.ppu.clock(gb)
+	gb.ppu.clock(gb)
+	gb.ppu.clock(gb)
+	gb.serial.clock(gb)
+	gb.machineCycles++
+}
+
+func (gb *GameBoy) ClockFrame() []uint8 {
+	if gb == nil {
+		return []uint8{}
+	}
+
+	start := gb.machineCycles
+	for gb.machineCycles < start+17556 {
+		gb.ExecuteInst()
+	}
+	return gb.ppu.frame[:]
+}
+
+func (gb *GameBoy) DrawNametables() []uint8 {
+	if gb == nil {
+		return []uint8{}
+	}
+
+	return gb.ppu.nametableFrame()
+}
+func (gb *GameBoy) DrawVram() []uint8 {
+	if gb == nil {
+		return []uint8{}
+	}
+
+	return gb.ppu.vramFrame()
+}
+
+func (gb *GameBoy) ToggleSprites() {
+	if gb == nil {
+		return
+	}
+
+	gb.ppu.hideSprites = !gb.ppu.hideSprites
+}
+func (gb *GameBoy) ToggleBackground() {
+	if gb == nil {
+		return
+	}
+
+	gb.ppu.hideBackground = !gb.ppu.hideBackground
+}
+func (gb *GameBoy) ToggleWindow() {
+	if gb == nil {
+		return
+	}
+
+	gb.ppu.hideWindow = !gb.ppu.hideWindow
+}
+
 func (gb *GameBoy) DumpWram() error {
+	if gb == nil {
+		return nil
+	}
+
 	f, err := ioutil.TempFile(".", "wram-*.bin")
 	if err != nil {
 		return err
@@ -253,7 +308,9 @@ func (gb *GameBoy) DumpWram() error {
 }
 
 func (gb *GameBoy) read(addr uint16) uint8 {
-	addr = gb.cartridge.translateRead(addr)
+	if gb == nil {
+		return 0
+	}
 
 	// Start	End		Description						Notes
 	// 0x0000	0x3FFF	16KB ROM bank 00				From cartridge, usually a fixed bank
@@ -384,7 +441,9 @@ func (gb *GameBoy) read(addr uint16) uint8 {
 }
 
 func (gb *GameBoy) write(addr uint16, v uint8) {
-	addr = gb.cartridge.translateWrite(addr)
+	if gb == nil {
+		return
+	}
 
 	// Start	End		Description						Notes
 	// 0x0000	0x3FFF	16KB ROM bank 00				From cartridge, usually a fixed bank
@@ -533,10 +592,6 @@ func (gb *GameBoy) write(addr uint16, v uint8) {
 	}
 
 	// panic(fmt.Sprintf("unmapped write at 0%X", addr))
-}
-
-func (gb *GameBoy) ToggleDebugInfo() {
-	gb.debug = !gb.debug
 }
 
 type busDevice interface {

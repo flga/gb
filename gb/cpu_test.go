@@ -3922,14 +3922,17 @@ func testInst(mnemonic string, tt cpuSingleTest, t *testing.T) {
 		copy(rom[0x0150:], code)
 
 		return &Cartridge{
-			rom:    rom[:],
-			mapper: mapper0{},
+			mbc: &mbc0{
+				rom: rom[:],
+			},
 		}
 	}
 
 	t.Run(mnemonic, func(t *testing.T) {
-		gb := New(makeTestRom(tt.code), false)
-
+		var gb GameBoy
+		if err := gb.InsertCartridge(makeTestRom(tt.code), nil, nil); err != nil {
+			t.Fatal(err)
+		}
 		gb.PowerOn()
 		gb.cpu.A = tt.pre.A
 		gb.cpu.F = tt.pre.F
@@ -3999,13 +4002,17 @@ func testInst(mnemonic string, tt cpuSingleTest, t *testing.T) {
 func TestHalt(t *testing.T) {
 	t.Run("ime set", func(t *testing.T) {
 		cart := &Cartridge{
-			rom: []byte{
-				0x0040: 0xD9, // RETI
-				0x150:  0x76, // HALT
+			mbc: &mbc0{
+				rom: []byte{
+					0x0040: 0xD9, // RETI
+					0x150:  0x76, // HALT
+				},
 			},
-			mapper: mapper0{},
 		}
-		gb := New(cart, false)
+		var gb GameBoy
+		if err := gb.InsertCartridge(cart, nil, nil); err != nil {
+			t.Fatal(err)
+		}
 		gb.PowerOn()
 		gb.cpu.IME = true
 		gb.cpu.PC = 0x0150
@@ -4086,14 +4093,18 @@ func TestHalt(t *testing.T) {
 
 	t.Run("ime NOT set, none pending", func(t *testing.T) {
 		cart := &Cartridge{
-			rom: []byte{
-				0x0040: 0xD9,       // RETI
-				0x0150: 0x76,       // HALT
-				0x0151: 0x3e, 0x42, // LD A,0x42
+			mbc: &mbc0{
+				rom: []byte{
+					0x0040: 0xD9,       // RETI
+					0x0150: 0x76,       // HALT
+					0x0151: 0x3e, 0x42, // LD A,0x42
+				},
 			},
-			mapper: mapper0{},
 		}
-		gb := New(cart, false)
+		var gb GameBoy
+		if err := gb.InsertCartridge(cart, nil, nil); err != nil {
+			t.Fatal(err)
+		}
 		gb.PowerOn()
 		gb.cpu.IME = false
 		gb.cpu.PC = 0x0150
@@ -4177,14 +4188,18 @@ func TestHalt(t *testing.T) {
 
 	t.Run("ime NOT set, some pending", func(t *testing.T) {
 		cart := &Cartridge{
-			rom: []byte{
-				0x0040: 0xD9,       // RETI
-				0x0150: 0x76,       // HALT
-				0x0151: 0x3e, 0x3C, // LD A,0x3C (should store 0x3E in A due to hw bug) and do INC A after
+			mbc: &mbc0{
+				rom: []byte{
+					0x0040: 0xD9,       // RETI
+					0x0150: 0x76,       // HALT
+					0x0151: 0x3e, 0x3C, // LD A,0x3C (should store 0x3E in A due to hw bug) and do INC A after
+				},
 			},
-			mapper: mapper0{},
 		}
-		gb := New(cart, false)
+		var gb GameBoy
+		if err := gb.InsertCartridge(cart, nil, nil); err != nil {
+			t.Fatal(err)
+		}
 		gb.PowerOn()
 		gb.cpu.IME = false
 		gb.cpu.PC = 0x0150

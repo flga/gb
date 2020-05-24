@@ -143,6 +143,11 @@ func (c *cpu) clock(gb *GameBoy) {
 	// 		gb.state |= interruptDispatch
 	// 	}
 	// 	gb.clockCompensate()
+	case gb.state&stop > 0:
+		if gb.interruptCtrl.raised(anyInterrupt) > 0 {
+			gb.state = interruptDispatch
+		}
+	// TODO: missing some component clocks here I think
 
 	case gb.state&run > 0:
 		op := c.readFrom(gb, c.PC)
@@ -229,9 +234,6 @@ func (c *cpu) clock(gb *GameBoy) {
 				gb.clockCompensate()
 			}
 		}
-
-	case gb.state&stop > 0:
-		panic("not implemented")
 	}
 }
 
@@ -1930,7 +1932,9 @@ func (c *cpu) scf(opcode uint8, gb *GameBoy) {
 
 // 0x10 STOP 0  2 4 0 - - - -
 func (c *cpu) stop(opcode uint8, gb *GameBoy) {
-	panic("stop")
+	gb.read(c.PC)
+	c.PC++
+	gb.state = stop
 }
 
 // 0xD6 SUB d8  2 8 0 Z 1 H C

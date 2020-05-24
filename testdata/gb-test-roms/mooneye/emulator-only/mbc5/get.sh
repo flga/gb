@@ -1,0 +1,16 @@
+wget https://gekkio.fi/files/mooneye-gb/latest/tests/emulator-only/mbc5/rom_16Mb.gb                                        
+wget https://gekkio.fi/files/mooneye-gb/latest/tests/emulator-only/mbc5/rom_16Mb.sym                                       
+wget https://gekkio.fi/files/mooneye-gb/latest/tests/emulator-only/mbc5/rom_1Mb.gb                                         
+wget https://gekkio.fi/files/mooneye-gb/latest/tests/emulator-only/mbc5/rom_1Mb.sym                                        
+wget https://gekkio.fi/files/mooneye-gb/latest/tests/emulator-only/mbc5/rom_2Mb.gb                                         
+wget https://gekkio.fi/files/mooneye-gb/latest/tests/emulator-only/mbc5/rom_2Mb.sym                                        
+wget https://gekkio.fi/files/mooneye-gb/latest/tests/emulator-only/mbc5/rom_32Mb.gb                                        
+wget https://gekkio.fi/files/mooneye-gb/latest/tests/emulator-only/mbc5/rom_32Mb.sym                                       
+wget https://gekkio.fi/files/mooneye-gb/latest/tests/emulator-only/mbc5/rom_4Mb.gb                                         
+wget https://gekkio.fi/files/mooneye-gb/latest/tests/emulator-only/mbc5/rom_4Mb.sym                                        
+wget https://gekkio.fi/files/mooneye-gb/latest/tests/emulator-only/mbc5/rom_512kb.gb                                       
+wget https://gekkio.fi/files/mooneye-gb/latest/tests/emulator-only/mbc5/rom_512kb.sym                                      
+wget https://gekkio.fi/files/mooneye-gb/latest/tests/emulator-only/mbc5/rom_64Mb.gb                                        
+wget https://gekkio.fi/files/mooneye-gb/latest/tests/emulator-only/mbc5/rom_64Mb.sym                                       
+wget https://gekkio.fi/files/mooneye-gb/latest/tests/emulator-only/mbc5/rom_8Mb.gb                                         
+wget https://gekkio.fi/files/mooneye-gb/latest/tests/emulator-only/mbc5/rom_8Mb.sym                                        

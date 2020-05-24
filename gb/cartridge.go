@@ -7,17 +7,16 @@ import (
 	"strings"
 )
 
-type rom []byte
+type rom []uint8
 
-func (r rom) read(addr uint16) byte {
-	return r[int(addr)%cap(r)]
+func (r rom) read(addr uint64) uint8 {
+	return r[int(addr)%len(r)]
 }
 
 type Cartridge struct {
-	rom    rom
-	mapper mapper
-
-	info CartridgeInfo
+	CartridgeInfo
+	mbc       mbc
+	savWriter io.WriteCloser
 }
 
 func NewCartridge(r io.Reader) (*Cartridge, error) {
@@ -26,52 +25,60 @@ func NewCartridge(r io.Reader) (*Cartridge, error) {
 		return nil, fmt.Errorf("unable to read rom: %w", err)
 	}
 
-	ret := &Cartridge{
-		rom:    rom(data),
-		info:   CartridgeInfo{},
-		mapper: mapper0{},
+	info := parseCartridgeHeader(data)
+	mbcFunc, ok := mbcs[info.CartridgeType]
+	if !ok {
+		return nil, fmt.Errorf("unsupported mapper %02x", info.CartridgeType)
 	}
 
-	ret.info.parseFrom(data)
+	mbc := mbcFunc(rom(data), info)
+
+	fmt.Printf("mapper: %T\n", mbc)
+	ret := &Cartridge{
+		CartridgeInfo: info,
+		mbc:           mbc,
+	}
 
 	return ret, nil
 }
 
-func (c *Cartridge) translateRead(addr uint16) uint16 {
-	if c == nil {
-		return addr // TODO: this is hack to avoid the race condition of reg initialization when cart not present, need to rethink that
-	}
-	return c.mapper.translateRead(addr)
-}
-
-func (c *Cartridge) translateWrite(addr uint16) uint16 {
-	if c == nil {
-		return addr // TODO: this is hack to avoid the race condition of reg initialization when cart not present, need to rethink that
-	}
-	return c.mapper.translateWrite(addr)
+func (c *Cartridge) clock(gb *GameBoy) {
+	c.mbc.clock(gb)
 }
 
 func (c *Cartridge) read(addr uint16) uint8 {
-	if addr >= 0xA000 && addr <= 0xBFFF {
-		return 0
-	}
-	return c.rom.read(addr)
+	return c.mbc.read(addr)
 }
 
 func (c *Cartridge) write(addr uint16, v uint8) {
-	dpanic("write to rom")
-	// todo
+	c.mbc.write(addr, v)
 }
 
-type mapper interface {
-	translateRead(addr uint16) uint16
-	translateWrite(addr uint16) uint16
+func (c *Cartridge) Saveable() bool {
+	return c.mbc.saveable()
 }
 
-type mapper0 struct{}
+func (c *Cartridge) loadSave(d []byte) {
+	if !c.Saveable() {
+		return
+	}
 
-func (mapper0) translateRead(addr uint16) uint16  { return addr }
-func (mapper0) translateWrite(addr uint16) uint16 { return addr }
+	c.mbc.loadSave(d)
+}
+
+func (c *Cartridge) save() error {
+	if !c.Saveable() {
+		return nil
+	}
+
+	data := c.mbc.save()
+
+	if _, err := c.savWriter.Write(data); err != nil {
+		return err
+	}
+
+	return c.savWriter.Close()
+}
 
 type CartridgeInfo struct {
 	Title                string
@@ -89,7 +96,9 @@ type CartridgeInfo struct {
 	GlobalChecksum       []uint8
 }
 
-func (cm *CartridgeInfo) parseFrom(data []byte) {
+func parseCartridgeHeader(data []byte) CartridgeInfo {
+	var cm CartridgeInfo
+
 	cm.Title = strings.TrimRight(string(data[0x0134:0x0143+1]), "\x00")
 	cm.ManufacturerCode = strings.TrimRight(string(data[0x013F:0x0142+1]), "\x00")
 	cm.CGBFlag = data[0x0143]
@@ -116,6 +125,8 @@ func (cm *CartridgeInfo) parseFrom(data []byte) {
 	cm.MaskROMVersionNumber = data[0x014C]
 	cm.HeaderChecksum = data[0x014D]
 	cm.GlobalChecksum = data[0x014E : 0x014F+1]
+
+	return cm
 }
 
 func (cm CartridgeInfo) String() string {

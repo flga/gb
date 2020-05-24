@@ -6,29 +6,32 @@ import (
 
 func TestRamMap(t *testing.T) {
 	cart := &Cartridge{
-		rom: []byte{
-			0x3E, 0x42, //       LD A,0x42
-			0xEA, 0x00, 0xC0, // LD (0xC000),A
-			0x21, 0x00, 0xC0, // LD HL,0xC000
-			0x46,             // LD B,(HL)
-			0x23,             // INC HL
-			0x4E,             // LD C,(HL)
-			0x21, 0x00, 0xE0, // LD HL,0xE000
-			0x56, //             LD D,(HL)
-			0x23, //             INC HL
-			0x5E, //             LD E,(HL)
+		mbc: &mbc0{
+			rom: []byte{
+				0x3E, 0x42, //       LD A,0x42
+				0xEA, 0x00, 0xC0, // LD (0xC000),A
+				0x21, 0x00, 0xC0, // LD HL,0xC000
+				0x46,             // LD B,(HL)
+				0x23,             // INC HL
+				0x4E,             // LD C,(HL)
+				0x21, 0x00, 0xE0, // LD HL,0xE000
+				0x56, //             LD D,(HL)
+				0x23, //             INC HL
+				0x5E, //             LD E,(HL)
 
-			0xEA, 0x80, 0xFF, // LD (0xFF80),A
-			0x21, 0x80, 0xFF, // LD HL,0xFF80
-			0x46, //             LD B,(HL)
-			0x23, //             INC HL
-			0x4E, //             LD C,(HL)
+				0xEA, 0x80, 0xFF, // LD (0xFF80),A
+				0x21, 0x80, 0xFF, // LD HL,0xFF80
+				0x46, //             LD B,(HL)
+				0x23, //             INC HL
+				0x4E, //             LD C,(HL)
+			},
 		},
-		mapper: mapper0{},
 	}
 
-	gb := New(cart, false)
-
+	var gb GameBoy
+	if err := gb.InsertCartridge(cart, nil, nil); err != nil {
+		t.Fatal(err)
+	}
 	gb.PowerOn()
 	gb.cpu.PC = 0x0000
 
